@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#121117">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>스튜디오 로그</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;600&family=IBM+Plex+Sans+KR:wght@400;500;600&family=Martian+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* 레이아웃: 랙 장비처럼 얇은 패널을 쌓고, 숫자(타이머·BPM·D-Day)만 모노 판독창으로 크게 보여 준다. 단일 다크 테마. */
+  color-scheme:dark;
+  --bg:#121117; --surface:#1b1a22; --raised:#25232e; --line:#34313f;
+  --ink:#edebf3; --ink-2:#aaa6b9; --ink-3:#7c788f;
+  --prod:#8a7df0; --prod-ink:#b9b1fa; --prod-wash:rgba(138,125,240,.15);
+  --piano:#c08a1e; --piano-ink:#e9bf6c; --piano-wash:rgba(210,158,56,.15);
+  --ok:#5fbf8f; --alert:#ec8a6f;
+  --f-display:"Hahmlet","Noto Serif KR","Apple SD Gothic Neo",serif;
+  --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --f-mono:"Martian Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --r:10px; --tab-h:60px;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 15px/1.55 var(--f-body);-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0;padding:0;text-align:inherit}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px;border-radius:6px}
+h1,h2,h3,p{margin:0}
+ul{list-style:none;margin:0;padding:0}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+svg.ic{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:none}
+
+/* 상단 바 */
+.top{position:sticky;top:0;z-index:20;background:rgba(18,17,23,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);padding-top:env(safe-area-inset-top)}
+.top-in{max-width:1160px;margin:0 auto;padding:0 20px;height:56px;display:flex;align-items:center;gap:20px}
+.brand{font:600 18px/1 var(--f-display);letter-spacing:-.01em;display:flex;align-items:center;gap:10px;white-space:nowrap}
+.brand i{display:flex;gap:3px}
+.brand i b{width:4px;height:16px;border-radius:2px;background:var(--prod)}
+.brand i b+b{background:var(--piano);height:11px;align-self:flex-end}
+.nav{display:flex;gap:2px;flex:1}
+.nav a{color:var(--ink-2);text-decoration:none;padding:8px 13px;border-radius:8px;font-weight:500;white-space:nowrap}
+.nav a:hover{color:var(--ink);background:var(--surface)}
+.nav a[aria-current="page"]{color:var(--ink);background:var(--raised)}
+.top-tools{display:flex;align-items:center;gap:8px;margin-left:auto}
+.pill-timer{display:none;align-items:center;gap:7px;padding:6px 11px;border-radius:99px;background:var(--piano-wash);color:var(--piano-ink);font-size:12px}
+.pill-timer.on{display:flex}
+.pill-timer::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--piano-ink);animation:pulse 1.4s infinite}
+@keyframes pulse{50%{opacity:.3}}
+
+main{max-width:1160px;margin:0 auto;padding:24px 20px 56px}
+.tabs{display:none}
+
+/* 공통 */
+.vh{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+.vh h1{font:600 26px/1.25 var(--f-display);letter-spacing:-.02em;text-wrap:balance}
+.vh p{color:var(--ink-2);margin-top:2px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.ph{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.ph h2{font:600 15px/1.3 var(--f-body);letter-spacing:0}
+.ph .count{color:var(--ink-3);font-weight:400;margin-left:6px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:38px;padding:0 14px;border-radius:8px;border:1px solid var(--line);background:var(--raised);font-weight:500;white-space:nowrap}
+.btn:hover{border-color:var(--ink-3)}
+.btn.sm{min-height:32px;padding:0 10px;font-size:13px}
+.btn.primary{background:var(--ink);color:#16151c;border-color:var(--ink)}
+.btn.prod{background:var(--prod);border-color:var(--prod);color:#12101f}
+.btn.piano{background:var(--piano);border-color:var(--piano);color:#1c1403}
+.btn.ghost{background:none}
+.btn.danger{color:var(--alert);background:none}
+.btn[disabled]{opacity:.45;cursor:default}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:2px 9px;border-radius:99px;font-size:12px;line-height:1.6;background:var(--raised);color:var(--ink-2);white-space:nowrap}
+.chip.prod{background:var(--prod-wash);color:var(--prod-ink)}
+.chip.piano{background:var(--piano-wash);color:var(--piano-ink)}
+.empty{color:var(--ink-3);padding:14px 4px;font-size:14px}
+.notice{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:10px 14px;border:1px dashed var(--line);border-radius:var(--r);color:var(--ink-2);font-size:14px;margin-bottom:16px}
+.notice.bad{border-color:var(--alert);color:var(--alert)}
+.grid2{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px;align-items:start}
+.stack{display:grid;gap:16px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+
+/* 일정 행 */
+.tasks{display:grid;gap:6px}
+.task{display:flex;align-items:stretch;gap:0;background:var(--raised);border-radius:8px;overflow:hidden;border-left:3px solid var(--prod)}
+.task.piano{border-left-color:var(--piano)}
+.task.dl{border-left-style:dashed}
+.st{display:flex;align-items:center;gap:6px;padding:0 10px 0 11px;min-width:86px;font-size:12px;color:var(--ink-2);border-right:1px solid var(--line)}
+.st:hover{color:var(--ink);background:rgba(255,255,255,.04)}
+.st-doing{color:var(--ink)}
+.st-done{color:var(--ok)}
+.task-main{flex:1;min-width:0;padding:9px 12px;display:grid;gap:1px}
+.task-main:hover{background:rgba(255,255,255,.04)}
+.task-title{font-weight:500;overflow-wrap:anywhere}
+.task.done .task-title{color:var(--ink-3);text-decoration:line-through}
+.task-meta{font-size:12px;color:var(--ink-3)}
+.task-meta .late{color:var(--alert)}
+
+/* 주간 스트립 */
+.strip{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-bottom:16px}
+.strip button{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 4px 9px;display:grid;justify-items:center;gap:3px;min-width:0}
+.strip button:hover{border-color:var(--ink-3)}
+.strip .wd{font-size:11px;color:var(--ink-3)}
+.strip .dn{font:600 15px/1 var(--f-mono)}
+.strip .is-today{border-color:var(--ink);background:var(--raised)}
+.dots{display:flex;gap:3px;height:6px;align-items:center}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--prod)}
+.dot.piano{background:var(--piano)}
+.dot.dl{border-radius:1px;transform:rotate(45deg);background:var(--alert)}
+
+/* 달력 */
+.seg{display:inline-flex;background:var(--raised);border:1px solid var(--line);border-radius:8px;padding:2px;gap:2px;flex-wrap:wrap}
+.seg button,.seg label{padding:5px 12px;border-radius:6px;color:var(--ink-2);font-weight:500;font-size:14px;cursor:pointer;white-space:nowrap}
+.seg [aria-pressed="true"],.seg input:checked+span{background:var(--ink);color:#16151c}
+.seg label{padding:0}
+.seg label span{display:block;padding:5px 12px;border-radius:6px}
+.seg input{position:absolute;opacity:0;pointer-events:none}
+.seg input:focus-visible+span{outline:2px solid var(--ink);outline-offset:2px}
+.calbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.calbar .ttl{font:600 15px/1 var(--f-mono);min-width:104px;text-align:center}
+.iconbtn{width:36px;height:36px;display:grid;place-items:center;border-radius:8px;border:1px solid var(--line);background:var(--raised)}
+.iconbtn:hover{border-color:var(--ink-3)}
+.month{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.month .wdh{background:var(--surface);text-align:center;font-size:12px;color:var(--ink-3);padding:6px 0}
+.cell{background:var(--surface);min-height:92px;padding:6px;display:flex;flex-direction:column;gap:3px;align-items:stretch;min-width:0}
+.cell:hover{background:#201f28}
+.cell.out .num{color:var(--ink-3);opacity:.55}
+.cell .num{font:400 12px/1.5 var(--f-mono);width:22px;height:22px;display:grid;place-items:center;border-radius:50%}
+.cell.is-today .num{background:var(--ink);color:#16151c;font-weight:600}
+.cell.sel{box-shadow:inset 0 0 0 2px var(--ink-2)}
+.ev{display:block;font-style:normal;font-size:11px;line-height:1.5;padding:0 5px;border-radius:3px;background:var(--prod-wash);color:var(--prod-ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev.piano{background:var(--piano-wash);color:var(--piano-ink)}
+.ev.dl{background:none;color:var(--alert);border:1px dashed currentColor;line-height:1.35}
+.ev.done{opacity:.5;text-decoration:line-through}
+.more{font-size:11px;color:var(--ink-3);padding-left:5px}
+.mini .cell{min-height:0;aspect-ratio:1;align-items:center;justify-content:center;padding:2px;gap:2px}
+.mini .ev,.mini .more{display:none}
+.month.mini .cell .dots{display:flex}
+.cell .dots{display:none}
+.month.mini .cell .dots{display:flex}
+.week{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+.wcol{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:8px;display:flex;flex-direction:column;gap:6px;min-height:220px}
+.wcol.is-today{border-color:var(--ink-2)}
+.wcol h3{font:500 12px/1.4 var(--f-body);color:var(--ink-2);display:flex;justify-content:space-between;align-items:center}
+.wcol h3 b{font:600 14px/1 var(--f-mono);color:var(--ink)}
+.wi{display:block;width:100%;font-size:12px;line-height:1.4;padding:5px 7px;border-radius:5px;background:var(--prod-wash);color:var(--prod-ink);overflow-wrap:anywhere}
+.wi.piano{background:var(--piano-wash);color:var(--piano-ink)}
+.wi.dl{background:none;border:1px dashed var(--alert);color:var(--alert)}
+.wi.done{opacity:.5;text-decoration:line-through}
+.wadd{margin-top:auto;color:var(--ink-3);font-size:12px;padding:4px;border-radius:5px;text-align:center}
+.wadd:hover{color:var(--ink);background:var(--raised)}
+
+/* 프로젝트 카드 */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:grid;gap:12px;align-content:start}
+.card-h{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.card-h h3{font:600 17px/1.35 var(--f-display);overflow-wrap:anywhere}
+.card-h .sub{color:var(--ink-3);font-size:13px}
+.readout{font:600 15px/1 var(--f-mono);padding:7px 9px;border-radius:6px;background:#0c0b10;border:1px solid var(--line);white-space:nowrap;font-variant-numeric:tabular-nums}
+.readout.prod{color:var(--prod-ink)} .readout.piano{color:var(--piano-ink)} .readout.late{color:var(--alert)} .readout.fin{color:var(--ok)}
+.tagrow{display:flex;gap:6px;flex-wrap:wrap}
+.fader{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center}
+.fader output{font:600 14px/1 var(--f-mono);min-width:44px;text-align:right}
+input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:28px;background:none;margin:0;--v:0%}
+input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:linear-gradient(90deg,var(--prod) var(--v),#0c0b10 var(--v));border:1px solid var(--line)}
+input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:#0c0b10;border:1px solid var(--line)}
+input[type=range]::-moz-range-progress{height:6px;border-radius:3px;background:var(--prod)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:24px;border-radius:3px;background:var(--ink);margin-top:-10px;border:0;box-shadow:inset 0 0 0 1px #16151c,inset 0 11px 0 -9px #16151c}
+input[type=range]::-moz-range-thumb{width:14px;height:24px;border-radius:3px;background:var(--ink);border:0}
+.note{color:var(--ink-2);font-size:14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.card-f{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.card-f .meta{color:var(--ink-3);font-size:13px}
+
+/* 피아노 */
+.timer{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px;align-items:center;border-color:#4a3c1c;background:linear-gradient(180deg,#1f1c1a,#1b1a22)}
+.t-read{font:600 clamp(44px,9vw,76px)/1 var(--f-mono);letter-spacing:-.04em;font-variant-numeric:tabular-nums;color:var(--piano-ink)}
+.t-read.rest{color:var(--ink-2)}
+.t-sub{color:var(--ink-2);margin-top:8px;font-size:14px}
+.t-side{display:grid;gap:10px;justify-items:start;min-width:250px}
+.t-btns{display:flex;gap:8px;flex-wrap:wrap}
+.t-set{display:flex;gap:10px;align-items:center;font-size:13px;color:var(--ink-2);flex-wrap:wrap}
+.t-set input{width:58px}
+select,input[type=text],input[type=number],input[type=date],input[type=time],textarea{background:#0f0e14;border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-height:38px;width:100%;max-width:100%}
+select:focus,input:focus,textarea:focus{border-color:var(--ink-2);outline:0}
+textarea{min-height:84px;resize:vertical;line-height:1.5}
+.tempo{display:grid;gap:6px}
+.tempo-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px;flex-wrap:wrap}
+.tempo-top .now{font:600 22px/1 var(--f-mono);color:var(--piano-ink)}
+.tempo-top .now small{font:400 12px/1 var(--f-body);color:var(--ink-3);margin-left:4px}
+.tempo-top .goal{font-size:13px;color:var(--ink-2)}
+.meter{position:relative;height:14px;border-radius:3px;background:#0c0b10;border:1px solid var(--line);background-image:repeating-linear-gradient(90deg,transparent 0 calc(10% - 1px),var(--line) calc(10% - 1px) 10%)}
+.meter i{position:absolute;inset:0 auto 0 0;background:var(--piano);border-radius:2px 4px 4px 2px}
+.meter b{position:absolute;top:-4px;bottom:-4px;width:2px;background:var(--ink);right:0}
+.step{display:flex;gap:6px;align-items:center}
+.step .iconbtn{width:32px;height:32px;font:600 15px/1 var(--f-mono)}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:14px}
+.kv dt{color:var(--ink-3)} .kv dd{margin:0}
+.logs{display:grid;gap:8px;border-top:1px solid var(--line);padding-top:12px}
+.log{display:grid;gap:2px;font-size:14px}
+.log .lh{display:flex;gap:8px;align-items:center;color:var(--ink-3);font-size:12px;flex-wrap:wrap}
+.log .lh button{margin-left:auto;color:var(--ink-3);font-size:12px;padding:2px 6px;border-radius:4px}
+.log .lh button:hover{color:var(--alert)}
+
+/* 통계 */
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px;display:grid;gap:6px}
+.tile .k{font-size:13px;color:var(--ink-2)}
+.tile .v{font:600 24px/1.1 var(--f-mono);letter-spacing:-.03em}
+.tile .s{font-size:12px;color:var(--ink-3)}
+.chart{position:relative}
+.chart svg{display:block;width:100%;height:auto;overflow:visible}
+.chart text{font:400 11px var(--f-mono);fill:var(--ink-3)}
+.chart .val{fill:var(--ink)}
+.chart .col:hover .hit,.chart .col.on .hit{fill:rgba(255,255,255,.05)}
+.tip{position:absolute;pointer-events:none;background:#0c0b10;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12px;line-height:1.6;white-space:nowrap;z-index:3;display:none;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+.tip b{font-weight:600;display:block}
+.tip span{display:flex;align-items:center;gap:6px;color:var(--ink-2)}
+.sw{width:9px;height:9px;border-radius:2px;background:var(--prod);flex:none}
+.sw.piano{background:var(--piano)}
+.legend{display:flex;gap:14px;font-size:12px;color:var(--ink-2)}
+.legend span{display:flex;align-items:center;gap:6px}
+details.tbl{margin-top:10px;font-size:13px}
+details.tbl summary{color:var(--ink-3);cursor:pointer;width:max-content}
+.tblwrap{overflow-x:auto;margin-top:8px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:right;padding:5px 10px;border-bottom:1px solid var(--line);white-space:nowrap;font-variant-numeric:tabular-nums}
+th:first-child,td:first-child{text-align:left}
+th{color:var(--ink-3);font-weight:500}
+.hbars{display:grid;gap:12px}
+.hbar{display:grid;gap:5px}
+.hbar .hl{display:flex;justify-content:space-between;gap:10px;font-size:14px}
+.hbar .hl span:last-child{font:400 12px/1.8 var(--f-mono);color:var(--ink-2);white-space:nowrap}
+.hbar .track{height:8px;border-radius:4px;background:#0c0b10;border:1px solid var(--line);overflow:hidden}
+.hbar .track i{display:block;height:100%;background:var(--prod);border-radius:0 4px 4px 0}
+.hbar.piano .track i{background:var(--piano)}
+
+/* 시트 */
+#sheet{position:fixed;inset:0;z-index:50;display:grid;place-items:center;padding:20px}
+#sheet[hidden]{display:none}
+.sheet-back{position:absolute;inset:0;background:rgba(6,6,9,.66)}
+.sheet{position:relative;width:min(480px,100%);max-height:min(88vh,100%);overflow:auto;background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;display:grid;gap:14px;animation:rise .18s ease-out}
+@keyframes rise{from{transform:translateY(10px);opacity:.6}}
+.sheet-h{display:flex;justify-content:space-between;align-items:center}
+.sheet-h h2{font:600 19px/1.3 var(--f-display)}
+.f{display:grid;gap:5px}
+.f>span,.f>legend{font-size:13px;color:var(--ink-2);padding:0}
+fieldset.f{border:0;margin:0;padding:0;min-width:0}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.checks{display:flex;gap:6px;flex-wrap:wrap}
+.checks label{cursor:pointer}
+.checks input{position:absolute;opacity:0;pointer-events:none}
+.checks span{display:block;padding:5px 11px;border-radius:99px;border:1px solid var(--line);font-size:13px;color:var(--ink-2)}
+.checks input:checked+span{background:var(--prod-wash);border-color:var(--prod);color:var(--prod-ink)}
+.checks input:focus-visible+span{outline:2px solid var(--ink);outline-offset:2px}
+.sheet-foot{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-top:4px}
+.sheet-foot .sp{flex:1}
+.err{color:var(--alert);font-size:13px;min-height:0}
+.help{font-size:13px;color:var(--ink-3)}
+hr{border:0;border-top:1px solid var(--line);margin:2px 0;width:100%}
+#toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:60;background:var(--ink);color:#16151c;padding:10px 14px;border-radius:10px;display:flex;gap:14px;align-items:center;font-weight:500;font-size:14px;max-width:calc(100% - 32px);box-shadow:0 8px 28px rgba(0,0,0,.5)}
+#toast[hidden]{display:none}
+#toast button{font-weight:600;text-decoration:underline;white-space:nowrap}
+
+@media (max-width:900px){
+  .grid2{grid-template-columns:minmax(0,1fr)}
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .week{grid-template-columns:minmax(0,1fr)}
+  .wcol{min-height:0}
+}
+@media (max-width:768px){
+  .nav{display:none}
+  .top-in{height:50px;padding:0 16px}
+  main{padding:18px 16px calc(var(--tab-h) + 40px + env(safe-area-inset-bottom))}
+  .vh h1{font-size:22px}
+  .tabs{display:grid;grid-template-columns:repeat(5,1fr);position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(22,21,28,.96);backdrop-filter:blur(12px);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom)}
+  .tabs a{height:var(--tab-h);display:grid;place-content:center;justify-items:center;gap:3px;color:var(--ink-3);text-decoration:none;font-size:11px;font-weight:500;-webkit-tap-highlight-color:transparent}
+  .tabs a svg{width:22px;height:22px}
+  .tabs a[aria-current="page"]{color:var(--ink)}
+  .tabs a[aria-current="page"][href="#studio"]{color:var(--prod-ink)}
+  .tabs a[aria-current="page"][href="#piano"]{color:var(--piano-ink)}
+  .cell{min-height:54px;align-items:center;padding:5px 2px}
+  .cell .ev,.cell .more{display:none}
+  .cell .dots{display:flex}
+  .timer{grid-template-columns:minmax(0,1fr)}
+  .t-side{min-width:0;justify-items:stretch}
+  .cards{grid-template-columns:minmax(0,1fr)}
+  #sheet{place-items:end center;padding:0}
+  .sheet{width:100%;max-height:92%;border-radius:16px 16px 0 0;border-bottom:0;padding-bottom:calc(18px + env(safe-area-inset-bottom))}
+  #toast{bottom:calc(var(--tab-h) + 14px + env(safe-area-inset-bottom))}
+  .st{min-width:78px}
+  .btn,.iconbtn{min-height:40px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-in">
+    <div class="brand"><i aria-hidden="true"><b></b><b></b></i>스튜디오 로그</div>
+    <nav class="nav" id="nav" aria-label="주 메뉴"></nav>
+    <div class="top-tools">
+      <a class="pill-timer mono" id="pill" href="#piano" style="text-decoration:none" aria-label="연습 타이머로 이동"></a>
+      <button class="btn sm ghost" data-act="backup" id="btn-backup">백업</button>
+    </div>
+  </div>
+</header>
+<main id="view"></main>
+<nav class="tabs" id="tabs" aria-label="주 메뉴"></nav>
+<div id="sheet" hidden></div>
+<div id="toast" role="status" hidden></div>
+
+<script>
+(function(){
+'use strict';
+/* ---------- 도우미 ---------- */
+var KEY='studio-log-v1';
+var TAGS=['작곡/편곡','녹음','믹싱/마스터링','사운드 디자인/미들웨어'];
+var STATUS={todo:'예정',doing:'진행 중',done:'완료'};
+var CAT={prod:'음악 작업',piano:'피아노 연습'};
+var WD=['일','월','화','수','목','금','토'];
+var VIEWS=[['today','오늘'],['calendar','캘린더'],['studio','작업실'],['piano','피아노'],['stats','통계']];
+var $=function(s,r){return (r||document).querySelector(s)};
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7)}
+function pad(n){return String(n).padStart(2,'0')}
+function ymd(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())}
+function pd(s){var a=s.split('-').map(Number);return new Date(a[0],a[1]-1,a[2])}
+function addD(s,n){var d=pd(s);d.setDate(d.getDate()+n);return ymd(d)}
+function today(){return ymd(new Date())}
+function weekStart(s){return addD(s,-((pd(s).getDay()+6)%7))}
+function fmtDay(s){var d=pd(s);return (d.getMonth()+1)+'월 '+d.getDate()+'일 '+WD[d.getDay()]+'요일'}
+function fmtShort(s){var d=pd(s);return (d.getMonth()+1)+'/'+d.getDate()}
+function diffD(a,b){return Math.round((pd(a)-pd(b))/864e5)}
+function dday(due){var n=diffD(due,today());return n===0?'D-DAY':n>0?'D-'+n:'D+'+(-n)}
+function fmtDur(sec){var m=Math.round(sec/60);if(m<60)return m+'분';var h=Math.floor(m/60);return m%60?h+'시간 '+(m%60)+'분':h+'시간'}
+function clock(ms){var s=Math.max(0,Math.floor(ms/1000)),h=Math.floor(s/3600),m=Math.floor(s%3600/60);return (h?pad(h)+':':'')+pad(m)+':'+pad(s%60)}
+function isDate(s){return /^\d{4}-\d{2}-\d{2}$/.test(s||'')}
+var IC={
+  today:'<circle cx="12" cy="12" r="4"/><path d="M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6l1.4 1.4M17 17l1.4 1.4M5.6 18.4 7 17M17 7l1.4-1.4"/>',
+  calendar:'<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/>',
+  studio:'<path d="M6 4v16M12 4v16M18 4v16"/><rect x="4" y="13" width="4" height="3" rx="1"/><rect x="10" y="7" width="4" height="3" rx="1"/><rect x="16" y="11" width="4" height="3" rx="1"/>',
+  piano:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M9 5v14M15 5v14M7.5 5v8h3V5M13.5 5v8h3V5"/>',
+  stats:'<path d="M5 20V11M12 20V5M19 20v-6"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  prev:'<path d="m14 6-6 6 6 6"/>', next:'<path d="m10 6 6 6-6 6"/>',
+  play:'<path d="M8 5v14l11-7z"/>', pause:'<path d="M8 5v14M16 5v14"/>',
+  todo:'<circle cx="12" cy="12" r="7.5"/>',
+  doing:'<circle cx="12" cy="12" r="7.5"/><path d="M12 4.5a7.5 7.5 0 0 1 0 15z" fill="currentColor"/>',
+  done:'<circle cx="12" cy="12" r="7.5"/><path d="m8.5 12.3 2.4 2.4 4.6-5"/>',
+  x:'<path d="M6 6l12 12M18 6 6 18"/>'
+};
+function ic(n){return '<svg class="ic" viewBox="0 0 24 24" aria-hidden="true">'+IC[n]+'</svg>'}
+
+/* ---------- 상태 ---------- */
+var storageOK=true, S, ui={view:'today',calMode:'month',calCursor:today(),calSel:today(),filter:'all',openLogs:{}}, undoSnap=null, dl=null;
+function blank(){return{v:1,tasks:[],projects:[],pieces:[],settings:{focus:25,rest:5},timer:null}}
+function normalize(o){
+  var b=blank();
+  if(!o||typeof o!=='object')return b;
+  ['tasks','projects','pieces'].forEach(function(k){if(Array.isArray(o[k]))b[k]=o[k].filter(function(x){return x&&typeof x==='object'})});
+  b.tasks.forEach(function(t){t.id=t.id||uid();if(!CAT[t.cat])t.cat='prod';if(!STATUS[t.status])t.status='todo';if(!isDate(t.date))t.date=today();t.title=String(t.title||'제목 없음')});
+  b.projects.forEach(function(p){p.id=p.id||uid();p.name=String(p.name||'이름 없음');p.tags=Array.isArray(p.tags)?p.tags:[];p.progress=Math.max(0,Math.min(100,+p.progress||0));if(!isDate(p.due))p.due=''});
+  b.pieces.forEach(function(p){p.id=p.id||uid();p.title=String(p.title||'제목 없음');p.targetBpm=+p.targetBpm||0;p.currentBpm=+p.currentBpm||0;p.logs=Array.isArray(p.logs)?p.logs.filter(function(l){return l&&isDate(l.date)}):[]});
+  if(o.settings){b.settings.focus=Math.max(1,Math.min(120,+o.settings.focus||25));b.settings.rest=Math.max(1,Math.min(60,+o.settings.rest||5))}
+  if(o.timer&&typeof o.timer==='object')b.timer=o.timer;
+  return b;
+}
+function seed(){
+  var t=today(),b=blank();
+  var p1=uid()+'a',p2=uid()+'b',p3=uid()+'c',q1=uid()+'d',q2=uid()+'e',q3=uid()+'f';
+  b.projects=[
+    {id:p1,name:'새벽 세 시 (싱글)',tags:['작곡/편곡','믹싱/마스터링'],due:addD(t,9),progress:65,note:'보컬 컴핑 끝. 2절 스트링 편곡과 러프 믹스 남음.',sample:true},
+    {id:p2,name:'게임 〈Lumen〉 UI 사운드',tags:['사운드 디자인/미들웨어'],due:addD(t,3),progress:40,note:'버튼·알림 32종 중 13종 완료. Wwise 이벤트 연결 남음.',sample:true},
+    {id:p3,name:'어쿠스틱 EP 2번 트랙',tags:['녹음'],due:addD(t,21),progress:15,note:'기타 가이드 녹음 예정.',sample:true}
+  ];
+  b.pieces=[
+    {id:q1,title:'에튀드 Op.10 No.4',composer:'쇼팽',targetBpm:160,currentBpm:112,section:'17~32마디',sample:true,logs:[
+      {id:uid()+'1',date:addD(t,-1),sec:2400,bpm:112,text:'왼손 16분음표가 뭉개짐. 리듬 바꿔서 분할 연습.'},
+      {id:uid()+'2',date:addD(t,-3),sec:1800,bpm:108,text:'17~24마디 암보 완료.'},
+      {id:uid()+'3',date:addD(t,-6),sec:2100,bpm:104,text:''},
+      {id:uid()+'4',date:addD(t,-9),sec:1500,bpm:100,text:''}]},
+    {id:q2,title:'달빛 (베르가마스크 모음곡)',composer:'드뷔시',targetBpm:66,currentBpm:60,section:'27~42마디',sample:true,logs:[
+      {id:uid()+'5',date:addD(t,-2),sec:1500,bpm:60,text:'아르페지오 페달 타이밍 조정. 오른손 멜로디가 더 떠야 함.'},
+      {id:uid()+'6',date:addD(t,-5),sec:1200,bpm:58,text:''},
+      {id:uid()+'7',date:addD(t,-8),sec:1800,bpm:56,text:''}]},
+    {id:q3,title:'하농 1~10번',composer:'하농',targetBpm:108,currentBpm:96,section:'전체',sample:true,logs:[
+      {id:uid()+'8',date:addD(t,-1),sec:900,bpm:96,text:''},
+      {id:uid()+'9',date:addD(t,-4),sec:900,bpm:92,text:''},
+      {id:uid()+'0',date:addD(t,-11),sec:600,bpm:88,text:''}]}
+  ];
+  var T=function(title,cat,off,time,status){return{id:uid()+Math.random().toString(36).slice(2,4),title:title,cat:cat,date:addD(t,off),time:time||'',status:status||'todo',note:'',sample:true,doneAt:status==='done'?addD(t,off):''}};
+  b.tasks=[
+    T('Lumen 알림음 5종 디자인','prod',0,'10:00','doing'),
+    T('하농 워밍업 15분','piano',0,'14:00','done'),
+    T('쇼팽 에튀드 17~32마디 분할 연습','piano',0,'14:20'),
+    T('새벽 세 시 2절 스트링 편곡','prod',0,'20:00'),
+    T('Lumen 버튼음 리비전 전달','prod',-1,'','todo'),
+    T('달빛 27~42마디 페달 연습','piano',-1,'','done'),
+    T('보컬 컴핑','prod',-2,'','done'),
+    T('하농 워밍업','piano',-3,'','done'),
+    T('Lumen 레퍼런스 수집','prod',-4,'','done'),
+    T('에튀드 암보 점검','piano',-6,'','done'),
+    T('Wwise 이벤트 연결','prod',1,'11:00'),
+    T('달빛 전체 통연습 녹음','piano',2,'15:00'),
+    T('EP 2번 기타 가이드 녹음','prod',4,'13:00'),
+    T('새벽 세 시 러프 믹스','prod',6,''),
+    T('에튀드 템포 120 도전','piano',5,'')
+  ];
+  return b;
+}
+function load(){
+  try{var raw=localStorage.getItem(KEY);if(raw)return normalize(JSON.parse(raw))}catch(e){storageOK=false}
+  return seed();
+}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));storageOK=true}catch(e){storageOK=false}}
+function hasSample(){return S.tasks.concat(S.projects,S.pieces).some(function(x){return x.sample})}
+function find(list,id){for(var i=0;i<list.length;i++)if(list[i].id===id)return list[i];return null}
+function withUndo(msg,fn){undoSnap=JSON.stringify(S);fn();save();render();toast(msg,true)}
+
+/* ---------- 토스트 / 시트 ---------- */
+var toastT;
+function toast(msg,undo){
+  var el=$('#toast');el.innerHTML='<span>'+esc(msg)+'</span>'+(undo?'<button data-act="undo">되돌리기</button>':'');
+  el.hidden=false;clearTimeout(toastT);toastT=setTimeout(function(){el.hidden=true},undo?6000:2600);
+}
+var sheetSubmit=null;
+function sheet(title,body,onSubmit){
+  var el=$('#sheet');
+  el.innerHTML='<div class="sheet-back" data-act="close-sheet"></div><form class="sheet" id="sheet-form" novalidate aria-label="'+esc(title)+'"><div class="sheet-h"><h2>'+esc(title)+'</h2><button type="button" class="iconbtn" data-act="close-sheet" aria-label="닫기">'+ic('x')+'</button></div>'+body+'</form>';
+  el.hidden=false;sheetSubmit=onSubmit||null;
+  var f=el.querySelector('input:not([type=radio]):not([type=checkbox]):not([type=file]),textarea,select');if(f)setTimeout(function(){f.focus()},30);
+}
+function closeSheet(){$('#sheet').hidden=true;$('#sheet').innerHTML='';sheetSubmit=null}
+function ferr(msg){var e=$('#f-err');if(e)e.textContent=msg}
+function segRadio(name,opts,val){return '<div class="seg">'+opts.map(function(o){return '<label><input type="radio" name="'+name+'" id="f-'+name+'-'+o[0]+'" value="'+o[0]+'"'+(o[0]===val?' checked':'')+'><span>'+o[1]+'</span></label>'}).join('')+'</div>'}
+
+/* ---------- 일정 ---------- */
+function itemsOn(date){
+  var a=S.tasks.filter(function(t){return t.date===date}).sort(function(x,y){return (x.time||'99')<(y.time||'99')?-1:(x.time||'99')>(y.time||'99')?1:0});
+  var d=S.projects.filter(function(p){return p.due===date});
+  return {tasks:a,dl:d};
+}
+function taskRow(t,showDate){
+  var late=t.date<today()&&t.status!=='done';
+  var meta=[CAT[t.cat]];if(t.time)meta.push(t.time);
+  return '<li class="task '+t.cat+' '+t.status+'">'+
+    '<button class="st st-'+t.status+'" data-act="cycle" data-id="'+t.id+'" aria-label="상태 바꾸기. 지금은 '+STATUS[t.status]+'">'+ic(t.status)+'<span>'+STATUS[t.status]+'</span></button>'+
+    '<button class="task-main" data-act="edit-task" data-id="'+t.id+'"><span class="task-title">'+esc(t.title)+'</span>'+
+    '<span class="task-meta">'+esc(meta.join(' · '))+(showDate?' · <span class="'+(late?'late':'')+'">'+fmtShort(t.date)+(late?' · '+(-diffD(t.date,today()))+'일 지남':'')+'</span>':'')+'</span></button></li>';
+}
+function dlRow(p){
+  return '<li class="task prod dl"><span class="st" style="color:var(--alert)">'+'<span class="mono">'+dday(p.due)+'</span></span>'+
+    '<button class="task-main" data-act="edit-proj" data-id="'+p.id+'"><span class="task-title">'+esc(p.name)+' 마감</span><span class="task-meta">진행률 '+p.progress+'%</span></button></li>';
+}
+function taskForm(t,preset){
+  var isNew=!t;preset=preset||{};
+  t=t||{title:'',cat:preset.cat||'prod',date:preset.date||today(),time:'',status:'todo',note:''};
+  sheet(isNew?'새 일정':'일정 수정',
+    '<label class="f"><span>제목</span><input type="text" id="f-title" name="title" value="'+esc(t.title)+'" placeholder="예: 2절 스트링 편곡" autocomplete="off"></label>'+
+    '<fieldset class="f"><legend>분류</legend>'+segRadio('cat',[['prod','음악 작업'],['piano','피아노 연습']],t.cat)+'</fieldset>'+
+    '<div class="row2"><label class="f"><span>날짜</span><input type="date" id="f-date" name="date" value="'+t.date+'"></label><label class="f"><span>시간 (선택)</span><input type="time" id="f-time" name="time" value="'+esc(t.time||'')+'"></label></div>'+
+    '<fieldset class="f"><legend>상태</legend>'+segRadio('status',[['todo','예정'],['doing','진행 중'],['done','완료']],t.status)+'</fieldset>'+
+    '<label class="f"><span>메모 (선택)</span><textarea id="f-note" name="note">'+esc(t.note||'')+'</textarea></label>'+
+    '<p class="err" id="f-err" role="alert"></p>'+
+    '<div class="sheet-foot">'+(isNew?'':'<button type="button" class="btn danger" data-act="del-task" data-id="'+t.id+'">삭제</button>')+'<span class="sp"></span><button class="btn primary">저장</button></div>',
+    function(fd){
+      var title=(fd.get('title')||'').trim();
+      if(!title)return ferr('제목을 입력하세요.');
+      if(!isDate(fd.get('date')))return ferr('날짜를 선택하세요.');
+      var o=isNew?{id:uid()}:t;
+      o.title=title;o.cat=fd.get('cat')||'prod';o.date=fd.get('date');o.time=fd.get('time')||'';o.note=(fd.get('note')||'').trim();
+      var st=fd.get('status')||'todo';o.doneAt=st==='done'?(o.status==='done'&&o.doneAt?o.doneAt:today()):'';o.status=st;
+      if(isNew)S.tasks.push(o);
+      save();closeSheet();render();toast(isNew?'일정을 추가했습니다.':'일정을 저장했습니다.');
+    });
+}
+
+/* ---------- 프로젝트 ---------- */
+function projForm(p){
+  var isNew=!p;p=p||{name:'',tags:[],due:addD(today(),14),progress:0,note:''};
+  sheet(isNew?'새 프로젝트':'프로젝트 수정',
+    '<label class="f"><span>프로젝트명</span><input type="text" id="f-name" name="name" value="'+esc(p.name)+'" placeholder="곡 제목 또는 사운드 디자인 프로젝트명" autocomplete="off"></label>'+
+    '<fieldset class="f"><legend>세부 작업</legend><div class="checks">'+TAGS.map(function(g,i){return '<label><input type="checkbox" name="tags" id="f-tag-'+i+'" value="'+esc(g)+'"'+(p.tags.indexOf(g)>=0?' checked':'')+'><span>'+esc(g)+'</span></label>'}).join('')+'</div></fieldset>'+
+    '<div class="row2"><label class="f"><span>마감일</span><input type="date" id="f-due" name="due" value="'+esc(p.due||'')+'"></label><label class="f"><span>진행률 (%)</span><input type="number" id="f-progress" name="progress" min="0" max="100" step="5" value="'+p.progress+'"></label></div>'+
+    '<label class="f"><span>메모 (선택)</span><textarea id="f-pnote" name="note">'+esc(p.note||'')+'</textarea></label>'+
+    '<p class="err" id="f-err" role="alert"></p>'+
+    '<div class="sheet-foot">'+(isNew?'':'<button type="button" class="btn danger" data-act="del-proj" data-id="'+p.id+'">삭제</button>')+'<span class="sp"></span><button class="btn prod">저장</button></div>',
+    function(fd){
+      var name=(fd.get('name')||'').trim();if(!name)return ferr('프로젝트명을 입력하세요.');
+      var o=isNew?{id:uid()}:p;
+      o.name=name;o.tags=fd.getAll('tags');o.due=isDate(fd.get('due'))?fd.get('due'):'';o.progress=Math.max(0,Math.min(100,Math.round(+fd.get('progress')||0)));o.note=(fd.get('note')||'').trim();
+      if(isNew)S.projects.push(o);
+      save();closeSheet();render();toast(isNew?'프로젝트를 추가했습니다.':'프로젝트를 저장했습니다.');
+    });
+}
+function projCard(p){
+  var fin=p.progress>=100,late=p.due&&p.due<today()&&!fin;
+  return '<article class="card"><div class="card-h"><div><h3>'+esc(p.name)+'</h3><div class="sub">'+(p.due?'마감 '+fmtDay(p.due):'마감일 없음')+'</div></div>'+
+    '<div class="readout '+(fin?'fin':late?'late':'prod')+'">'+(fin?'완료':p.due?dday(p.due):'—')+'</div></div>'+
+    (p.tags.length?'<div class="tagrow">'+p.tags.map(function(g){return '<span class="chip prod">'+esc(g)+'</span>'}).join('')+'</div>':'')+
+    '<div class="fader"><input type="range" id="rg-'+p.id+'" min="0" max="100" step="5" value="'+p.progress+'" style="--v:'+p.progress+'%" data-range="'+p.id+'" aria-label="'+esc(p.name)+' 진행률"><output id="out-'+p.id+'">'+p.progress+'%</output></div>'+
+    (p.note?'<p class="note">'+esc(p.note)+'</p>':'')+
+    '<div class="card-f"><span class="meta">슬라이더를 움직이면 바로 저장됩니다</span><button class="btn sm" data-act="edit-proj" data-id="'+p.id+'">수정</button></div></article>';
+}
+
+/* ---------- 피아노 ---------- */
+function pieceTotal(p){return p.logs.reduce(function(a,l){return a+(+l.sec||0)},0)}
+function pieceForm(p){
+  var isNew=!p;p=p||{title:'',composer:'',targetBpm:100,currentBpm:60,section:''};
+  sheet(isNew?'새 연습곡':'연습곡 수정',
+    '<label class="f"><span>곡목</span><input type="text" id="f-ptitle" name="title" value="'+esc(p.title)+'" placeholder="예: 녹턴 Op.9 No.2" autocomplete="off"></label>'+
+    '<label class="f"><span>작곡가 (선택)</span><input type="text" id="f-composer" name="composer" value="'+esc(p.composer||'')+'" autocomplete="off"></label>'+
+    '<div class="row2"><label class="f"><span>목표 템포 (BPM)</span><input type="number" id="f-target" name="targetBpm" min="20" max="300" value="'+p.targetBpm+'"></label><label class="f"><span>현재 템포 (BPM)</span><input type="number" id="f-current" name="currentBpm" min="20" max="300" value="'+p.currentBpm+'"></label></div>'+
+    '<label class="f"><span>집중 연습 구간</span><input type="text" id="f-section" name="section" value="'+esc(p.section||'')+'" placeholder="예: 16~32마디" autocomplete="off"></label>'+
+    '<p class="err" id="f-err" role="alert"></p>'+
+    '<div class="sheet-foot">'+(isNew?'':'<button type="button" class="btn danger" data-act="del-piece" data-id="'+p.id+'">삭제</button>')+'<span class="sp"></span><button class="btn piano">저장</button></div>',
+    function(fd){
+      var title=(fd.get('title')||'').trim();if(!title)return ferr('곡목을 입력하세요.');
+      var tg=Math.round(+fd.get('targetBpm')),cu=Math.round(+fd.get('currentBpm'));
+      if(!(tg>=20&&tg<=300)||!(cu>=20&&cu<=300))return ferr('템포는 20~300 BPM 사이로 입력하세요.');
+      var o=isNew?{id:uid(),logs:[]}:p;
+      o.title=title;o.composer=(fd.get('composer')||'').trim();o.targetBpm=tg;o.currentBpm=cu;o.section=(fd.get('section')||'').trim();
+      if(isNew){S.pieces.push(o);if(S.timer&&!S.timer.pieceId)S.timer.pieceId=o.id}
+      save();closeSheet();render();toast(isNew?'연습곡을 추가했습니다.':'연습곡을 저장했습니다.');
+    });
+}
+function logForm(p,preSec,fromTimer){
+  var mins=preSec?Math.max(1,Math.round(preSec/60)):'';
+  sheet('연습 기록 · '+p.title,
+    '<div class="row2"><label class="f"><span>날짜</span><input type="date" id="f-ldate" name="date" value="'+today()+'"></label><label class="f"><span>연습 시간 (분)</span><input type="number" id="f-lmin" name="min" min="0" max="600" value="'+mins+'" placeholder="0"></label></div>'+
+    '<label class="f"><span>오늘 도달한 템포 (BPM) · 목표 '+p.targetBpm+'</span><input type="number" id="f-lbpm" name="bpm" min="20" max="300" value="'+(p.currentBpm||'')+'"></label>'+
+    '<label class="f"><span>연습 일지</span><textarea id="f-ltext" name="text" placeholder="잘된 점, 막힌 마디, 다음에 할 것"></textarea></label>'+
+    '<p class="err" id="f-err" role="alert"></p>'+
+    '<div class="sheet-foot"><span class="sp"></span><button class="btn piano">기록 저장</button></div>',
+    function(fd){
+      var m=Math.max(0,+fd.get('min')||0),text=(fd.get('text')||'').trim(),bpm=Math.round(+fd.get('bpm')||0);
+      if(!m&&!text)return ferr('연습 시간이나 일지 중 하나는 입력하세요.');
+      if(bpm&&!(bpm>=20&&bpm<=300))return ferr('템포는 20~300 BPM 사이로 입력하세요.');
+      p.logs.unshift({id:uid(),date:isDate(fd.get('date'))?fd.get('date'):today(),sec:Math.round(m*60),bpm:bpm||0,text:text});
+      p.logs.sort(function(a,b){return a.date<b.date?1:a.date>b.date?-1:0});
+      if(bpm)p.currentBpm=bpm;
+      if(fromTimer)resetTimer();
+      save();closeSheet();render();toast('연습 기록을 저장했습니다.');
+    });
+}
+function pieceCard(p){
+  var pct=p.targetBpm?Math.round(p.currentBpm/p.targetBpm*100):0,scale=Math.max(p.targetBpm,p.currentBpm,1);
+  var open=ui.openLogs[p.id],logs=open?p.logs:p.logs.slice(0,2);
+  return '<article class="card"><div class="card-h"><div><h3>'+esc(p.title)+'</h3><div class="sub">'+esc(p.composer||'')+'</div></div><div class="readout piano">'+pct+'%</div></div>'+
+    '<div class="tempo"><div class="tempo-top"><span class="now">'+p.currentBpm+'<small>BPM 현재</small></span><span class="goal">목표 <span class="mono">'+p.targetBpm+'</span> BPM</span></div>'+
+    '<div class="meter" role="img" aria-label="현재 '+p.currentBpm+' BPM, 목표 '+p.targetBpm+' BPM"><i style="width:'+Math.min(100,p.currentBpm/scale*100)+'%"></i><b style="right:'+(100-p.targetBpm/scale*100)+'%"></b></div>'+
+    '<div class="step"><button class="iconbtn" data-act="bpm" data-d="-2" data-id="'+p.id+'" aria-label="현재 템포 2 내리기">−</button><button class="iconbtn" data-act="bpm" data-d="2" data-id="'+p.id+'" aria-label="현재 템포 2 올리기">+</button><span class="help">현재 템포를 2씩 조절</span></div></div>'+
+    '<dl class="kv"><dt>집중 구간</dt><dd>'+esc(p.section||'정하지 않음')+'</dd><dt>누적 연습</dt><dd>'+fmtDur(pieceTotal(p))+' · '+p.logs.length+'회</dd></dl>'+
+    '<div class="card-f"><div class="t-btns"><button class="btn sm piano" data-act="t-pick" data-id="'+p.id+'">'+ic('play')+'타이머로 연습</button><button class="btn sm" data-act="add-log" data-id="'+p.id+'">일지 쓰기</button></div><button class="btn sm ghost" data-act="edit-piece" data-id="'+p.id+'">수정</button></div>'+
+    (p.logs.length?'<div class="logs">'+logs.map(function(l){return '<div class="log"><div class="lh"><span class="mono">'+fmtShort(l.date)+'</span>'+(l.sec?'<span>'+fmtDur(l.sec)+'</span>':'')+(l.bpm?'<span class="mono">'+l.bpm+' BPM</span>':'')+'<button data-act="del-log" data-id="'+p.id+'" data-log="'+l.id+'" aria-label="이 기록 삭제">삭제</button></div>'+(l.text?'<p class="note">'+esc(l.text)+'</p>':'')+'</div>'}).join('')+
+      (p.logs.length>2?'<button class="btn sm ghost" data-act="toggle-logs" data-id="'+p.id+'">'+(open?'접기':'기록 '+p.logs.length+'개 모두 보기')+'</button>':'')+'</div>':'')+
+    '</article>';
+}
+
+/* ---------- 타이머 ---------- */
+var audio=null;
+function T(){
+  if(!S.timer||typeof S.timer!=='object')S.timer={};
+  var t=S.timer;
+  if(t.mode!=='pomo')t.mode='sw';
+  t.running=!!t.running;t.startedAt=+t.startedAt||0;t.acc=+t.acc||0;t.banked=+t.banked||0;t.round=+t.round||1;
+  if(t.phase!=='rest')t.phase='focus';
+  if(!find(S.pieces,t.pieceId))t.pieceId=S.pieces[0]?S.pieces[0].id:'';
+  return t;
+}
+function tElapsed(){var t=T();return t.acc+(t.running?Date.now()-t.startedAt:0)}
+function tLen(){var t=T();return (t.phase==='focus'?S.settings.focus:S.settings.rest)*60000}
+function tPracticed(){var t=T();return t.mode==='sw'?tElapsed():t.banked+(t.phase==='focus'?tElapsed():0)}
+function tAdvance(){
+  var t=T(),ch=false,g=0;if(t.mode!=='pomo')return false;
+  while(g++<200){var len=tLen(),el=tElapsed();if(el<len)break;
+    if(t.phase==='focus'){t.banked+=len;t.phase='rest'}else{t.phase='focus';t.round++}
+    t.acc=el-len;if(t.running)t.startedAt=Date.now();ch=true}
+  return ch;
+}
+function resetTimer(){var t=T();t.running=false;t.acc=0;t.startedAt=0;t.banked=0;t.round=1;t.phase='focus'}
+function beep(){
+  try{if(!audio)return;var o=audio.createOscillator(),g=audio.createGain();o.frequency.value=880;o.connect(g);g.connect(audio.destination);
+    g.gain.setValueAtTime(.0001,audio.currentTime);g.gain.exponentialRampToValueAtTime(.25,audio.currentTime+.02);g.gain.exponentialRampToValueAtTime(.0001,audio.currentTime+.7);o.start();o.stop(audio.currentTime+.75)}catch(e){}
+}
+function tText(){
+  var t=T();
+  if(t.mode==='sw')return {read:clock(tElapsed()),sub:t.running?'연습 중':tElapsed()>0?'일시정지':'시작을 누르면 연습 시간을 잽니다',rest:false};
+  var left=Math.ceil((tLen()-tElapsed())/1000)*1000;
+  return {read:clock(left),sub:(t.phase==='focus'?'집중 '+t.round+'회차':'휴식')+' · 누적 연습 '+fmtDur(tPracticed()),rest:t.phase==='rest'};
+}
+function timerPanel(){
+  var t=T(),x=tText(),has=S.pieces.length>0,dirty=tPracticed()>0||t.running||t.acc>0;
+  if(!has)return '<section class="panel timer"><div><div class="t-read mono rest">00:00</div><p class="t-sub">연습곡을 먼저 추가하면 타이머를 쓸 수 있습니다.</p></div><div class="t-side"><button class="btn piano" data-act="new-piece">'+ic('plus')+'연습곡 추가</button></div></section>';
+  return '<section class="panel timer" id="timer"><div><div class="t-read mono'+(x.rest?' rest':'')+'" id="t-read" aria-live="off">'+x.read+'</div><p class="t-sub" id="t-sub">'+x.sub+'</p></div>'+
+    '<div class="t-side">'+
+    '<label class="f" style="width:100%"><span>연습할 곡</span><select id="t-piece" data-change="t-piece">'+S.pieces.map(function(p){return '<option value="'+p.id+'"'+(p.id===t.pieceId?' selected':'')+'>'+esc(p.title)+'</option>'}).join('')+'</select></label>'+
+    '<div class="seg" role="group" aria-label="타이머 방식"><button type="button" data-act="t-mode" data-m="sw" aria-pressed="'+(t.mode==='sw')+'">스톱워치</button><button type="button" data-act="t-mode" data-m="pomo" aria-pressed="'+(t.mode==='pomo')+'">포모도로</button></div>'+
+    (t.mode==='pomo'?'<div class="t-set"><label for="t-focus">집중</label><input type="number" id="t-focus" min="1" max="120" value="'+S.settings.focus+'" data-change="t-focus"><label for="t-rest">분 · 휴식</label><input type="number" id="t-rest" min="1" max="60" value="'+S.settings.rest+'" data-change="t-rest"><span>분</span></div>':'')+
+    '<div class="t-btns"><button class="btn piano" data-act="t-toggle">'+(t.running?ic('pause')+'일시정지':ic('play')+(dirty?'계속':'시작'))+'</button>'+
+    '<button class="btn" data-act="t-finish"'+(tPracticed()<1000?' disabled':'')+'>끝내고 기록</button>'+
+    '<button class="btn ghost" data-act="t-reset"'+(dirty?'':' disabled')+'>초기화</button></div></div></section>';
+}
+function tickUI(){
+  var t=T(),ch=tAdvance();
+  if(ch){beep();save();if(ui.view==='piano'&&$('#sheet').hidden){render();return}}
+  var x=tText(),r=$('#t-read'),s=$('#t-sub'),pill=$('#pill');
+  if(r){r.textContent=x.read;r.classList.toggle('rest',x.rest)}
+  if(s)s.textContent=x.sub;
+  if(t.running&&ui.view!=='piano'){pill.textContent=x.read;pill.classList.add('on')}else pill.classList.remove('on');
+}
+
+/* ---------- 화면 ---------- */
+function dotsFor(date){
+  var it=itemsOn(date),h='',n=0;
+  it.dl.forEach(function(){if(n<4){h+='<span class="dot dl"></span>';n++}});
+  it.tasks.forEach(function(t){if(n<4){h+='<span class="dot '+t.cat+'"></span>';n++}});
+  return '<span class="dots" aria-hidden="true">'+h+'</span>';
+}
+function monthGrid(cursor,mini){
+  var d=pd(cursor),first=ymd(new Date(d.getFullYear(),d.getMonth(),1)),start=weekStart(first),mo=d.getMonth(),td=today();
+  var h='<div class="month'+(mini?' mini':'')+'">'+['월','화','수','목','금','토','일'].map(function(w){return '<div class="wdh">'+w+'</div>'}).join('');
+  var last=new Date(d.getFullYear(),d.getMonth()+1,0),end=addD(weekStart(ymd(last)),6);
+  for(var c=start;c<=end;c=addD(c,1)){
+    var it=itemsOn(c),cd=pd(c),ev=it.dl.map(function(p){return '<i class="ev dl">마감 · '+esc(p.name)+'</i>'}).concat(it.tasks.map(function(t){return '<i class="ev '+t.cat+(t.status==='done'?' done':'')+'">'+esc(t.title)+'</i>'}));
+    var total=ev.length;
+    h+='<button class="cell'+(cd.getMonth()!==mo?' out':'')+(c===td?' is-today':'')+(!mini&&c===ui.calSel?' sel':'')+'" data-act="'+(mini?'goto-day':'sel-day')+'" data-date="'+c+'" aria-label="'+fmtDay(c)+', 일정 '+total+'개"><span class="num">'+cd.getDate()+'</span>'+
+      ev.slice(0,3).join('')+(total>3?'<span class="more">+'+(total-3)+'</span>':'')+dotsFor(c)+'</button>';
+  }
+  return h+'</div>';
+}
+function vToday(){
+  var td=today(),it=itemsOn(td),done=it.tasks.filter(function(t){return t.status==='done'}).length;
+  var late=S.tasks.filter(function(t){return t.date<td&&t.status!=='done'}).sort(function(a,b){return a.date<b.date?-1:1});
+  var ws=weekStart(td),strip='';
+  for(var i=0;i<7;i++){var c=addD(ws,i);strip+='<button class="'+(c===td?'is-today':'')+'" data-act="goto-day" data-date="'+c+'" aria-label="'+fmtDay(c)+'"><span class="wd">'+WD[pd(c).getDay()]+'</span><span class="dn">'+pd(c).getDate()+'</span>'+dotsFor(c)+'</button>'}
+  var dls=S.projects.filter(function(p){return p.due&&p.progress<100}).sort(function(a,b){return a.due<b.due?-1:1}).slice(0,4);
+  var secToday=0;S.pieces.forEach(function(p){p.logs.forEach(function(l){if(l.date===td)secToday+=l.sec||0})});
+  var sum=it.tasks.length?'일정 '+it.tasks.length+'개 중 '+done+'개 완료':'오늘 잡힌 일정이 없습니다';
+  return (storageOK?'':'<div class="notice bad">이 브라우저에서 저장이 막혀 있어, 창을 닫으면 기록이 사라집니다. 백업에서 JSON으로 내보내 두세요.</div>')+
+    (hasSample()?'<div class="notice"><span>지금 보이는 일정은 예시입니다. 지우고 내 일정으로 시작하세요.</span><button class="btn sm" data-act="clear-sample">예시 지우기</button></div>':'')+
+    '<div class="vh"><div><h1>'+fmtDay(td)+'</h1><p>'+sum+(secToday?' · 오늘 연습 '+fmtDur(secToday):'')+'</p></div><button class="btn primary" data-act="new-task">'+ic('plus')+'일정 추가</button></div>'+
+    '<div class="strip">'+strip+'</div>'+
+    '<div class="grid2"><div class="stack">'+
+      '<section class="panel"><div class="ph"><h2>오늘 할 일<span class="count">'+it.tasks.length+'</span></h2></div>'+
+        (it.tasks.length||it.dl.length?'<ul class="tasks">'+it.dl.map(dlRow).join('')+it.tasks.map(function(t){return taskRow(t)}).join('')+'</ul>':'<p class="empty">일정 추가를 눌러 오늘 할 일을 적어 보세요.</p>')+'</section>'+
+      (late.length?'<section class="panel"><div class="ph"><h2>밀린 일정<span class="count">'+late.length+'</span></h2></div><ul class="tasks">'+late.map(function(t){return taskRow(t,true)}).join('')+'</ul></section>':'')+
+    '</div><div class="stack">'+
+      '<section class="panel"><div class="ph"><h2>'+(pd(td).getMonth()+1)+'월</h2><a class="btn sm ghost" href="#calendar">캘린더 열기</a></div>'+monthGrid(td,true)+'</section>'+
+      '<section class="panel"><div class="ph"><h2>다가오는 마감</h2><a class="btn sm ghost" href="#studio">작업실</a></div>'+
+        (dls.length?'<div class="hbars">'+dls.map(function(p){var lt=p.due<td;return '<div class="hbar"><div class="hl"><span>'+esc(p.name)+'</span><span style="'+(lt?'color:var(--alert)':'')+'">'+dday(p.due)+' · '+p.progress+'%</span></div><div class="track"><i style="width:'+p.progress+'%"></i></div></div>'}).join('')+'</div>':'<p class="empty">마감이 잡힌 프로젝트가 없습니다.</p>')+'</section>'+
+    '</div></div>';
+}
+function vCalendar(){
+  var cur=ui.calCursor,d=pd(cur),ttl,body;
+  if(ui.calMode==='month'){ttl=d.getFullYear()+'. '+pad(d.getMonth()+1);body=monthGrid(cur,false)}
+  else{
+    var ws=weekStart(cur),td=today();ttl=fmtShort(ws)+' – '+fmtShort(addD(ws,6));body='<div class="week">';
+    for(var i=0;i<7;i++){var c=addD(ws,i),it=itemsOn(c);
+      body+='<section class="wcol'+(c===td?' is-today':'')+'"><h3><span>'+WD[pd(c).getDay()]+'요일</span><b>'+pd(c).getDate()+'</b></h3>'+
+        it.dl.map(function(p){return '<button class="wi dl" data-act="edit-proj" data-id="'+p.id+'">마감 · '+esc(p.name)+'</button>'}).join('')+
+        it.tasks.map(function(t){return '<button class="wi '+t.cat+(t.status==='done'?' done':'')+'" data-act="edit-task" data-id="'+t.id+'">'+(t.time?'<span class="mono">'+t.time+'</span> ':'')+esc(t.title)+'</button>'}).join('')+
+        '<button class="wadd" data-act="new-task" data-date="'+c+'" aria-label="'+fmtDay(c)+'에 일정 추가">+ 추가</button></section>'}
+    body+='</div>';
+  }
+  var sel=ui.calSel,its=itemsOn(sel);
+  return '<div class="vh"><div><h1>캘린더</h1><p>보라색은 음악 작업, 금색은 피아노 연습, 점선은 프로젝트 마감입니다.</p></div>'+
+    '<div class="calbar"><div class="seg" role="group" aria-label="보기 방식"><button data-act="cal-mode" data-m="month" aria-pressed="'+(ui.calMode==='month')+'">월간</button><button data-act="cal-mode" data-m="week" aria-pressed="'+(ui.calMode==='week')+'">주간</button></div>'+
+    '<button class="iconbtn" data-act="cal-nav" data-d="-1" aria-label="이전">'+ic('prev')+'</button><span class="ttl">'+ttl+'</span><button class="iconbtn" data-act="cal-nav" data-d="1" aria-label="다음">'+ic('next')+'</button><button class="btn sm" data-act="cal-today">오늘</button></div></div>'+
+    body+
+    (ui.calMode==='month'?'<section class="panel" style="margin-top:16px"><div class="ph"><h2>'+fmtDay(sel)+'<span class="count">'+(its.tasks.length+its.dl.length)+'</span></h2><button class="btn sm primary" data-act="new-task" data-date="'+sel+'">'+ic('plus')+'이 날에 추가</button></div>'+
+      (its.tasks.length||its.dl.length?'<ul class="tasks">'+its.dl.map(dlRow).join('')+its.tasks.map(function(t){return taskRow(t)}).join('')+'</ul>':'<p class="empty">이 날은 비어 있습니다.</p>')+'</section>':'');
+}
+function vStudio(){
+  var list=S.projects.filter(function(p){return ui.filter==='all'||p.tags.indexOf(ui.filter)>=0}).sort(function(a,b){var fa=a.progress>=100,fb=b.progress>=100;if(fa!==fb)return fa?1:-1;return (a.due||'9')<(b.due||'9')?-1:1});
+  var open=S.tasks.filter(function(t){return t.cat==='prod'&&t.status!=='done'}).sort(function(a,b){return a.date<b.date?-1:1}).slice(0,6);
+  return '<div class="vh"><div><h1>작업실</h1><p>곡과 사운드 디자인 프로젝트의 마감과 진행률</p></div><button class="btn prod" data-act="new-proj">'+ic('plus')+'새 프로젝트</button></div>'+
+    '<div class="seg" role="group" aria-label="세부 작업으로 거르기" style="margin-bottom:16px"><button data-act="filter" data-f="all" aria-pressed="'+(ui.filter==='all')+'">전체</button>'+TAGS.map(function(g){return '<button data-act="filter" data-f="'+esc(g)+'" aria-pressed="'+(ui.filter===g)+'">'+esc(g)+'</button>'}).join('')+'</div>'+
+    (list.length?'<div class="cards">'+list.map(projCard).join('')+'</div>':'<p class="empty">'+(S.projects.length?'이 작업에 해당하는 프로젝트가 없습니다.':'새 프로젝트를 눌러 첫 프로젝트를 등록하세요.')+'</p>')+
+    '<section class="panel" style="margin-top:16px"><div class="ph"><h2>남은 작업 일정<span class="count">'+open.length+'</span></h2><button class="btn sm" data-act="new-task" data-cat="prod">'+ic('plus')+'작업 일정 추가</button></div>'+
+    (open.length?'<ul class="tasks">'+open.map(function(t){return taskRow(t,true)}).join('')+'</ul>':'<p class="empty">남은 작업 일정이 없습니다.</p>')+'</section>';
+}
+function vPiano(){
+  return '<div class="vh"><div><h1>피아노</h1><p>곡별 템포, 집중 구간, 연습 시간과 일지</p></div><button class="btn piano" data-act="new-piece">'+ic('plus')+'연습곡 추가</button></div>'+
+    timerPanel()+
+    '<div class="cards" style="margin-top:16px">'+S.pieces.map(pieceCard).join('')+'</div>'+
+    (S.pieces.length?'':'<p class="empty">연습곡을 추가하면 템포와 일지를 기록할 수 있습니다.</p>');
+}
+function statData(){
+  var td=today(),days=[],i;for(i=13;i>=0;i--)days.push(addD(td,-i));
+  var prac=days.map(function(){return 0}),dp=days.map(function(){return 0}),dq=days.map(function(){return 0});
+  S.pieces.forEach(function(p){p.logs.forEach(function(l){var k=days.indexOf(l.date);if(k>=0)prac[k]+=(l.sec||0)/60})});
+  S.tasks.forEach(function(t){if(t.status!=='done')return;var k=days.indexOf(t.doneAt||t.date);if(k>=0){if(t.cat==='prod')dp[k]++;else dq[k]++}});
+  prac=prac.map(Math.round);
+  return {days:days,prac:prac,dp:dp,dq:dq};
+}
+function vStats(){
+  var td=today(),ws=weekStart(td),we=addD(ws,6),wsec=0,psec=0;
+  S.pieces.forEach(function(p){p.logs.forEach(function(l){if(l.date>=ws&&l.date<=we)wsec+=l.sec||0;else if(l.date>=addD(ws,-7)&&l.date<ws)psec+=l.sec||0})});
+  var wt=S.tasks.filter(function(t){return t.date>=ws&&t.date<=we}),wd=wt.filter(function(t){return t.status==='done'}).length;
+  var act=S.projects.filter(function(p){return p.progress<100}),near=act.filter(function(p){return p.due}).sort(function(a,b){return a.due<b.due?-1:1})[0];
+  var tp=S.pieces.filter(function(p){return p.targetBpm>0}),avg=tp.length?Math.round(tp.reduce(function(a,p){return a+Math.min(1,p.currentBpm/p.targetBpm)},0)/tp.length*100):0;
+  var D=statData();
+  var rows=D.days.map(function(d,i){return '<tr><td>'+fmtShort(d)+' ('+WD[pd(d).getDay()]+')</td><td>'+D.prac[i]+'</td><td>'+D.dp[i]+'</td><td>'+D.dq[i]+'</td></tr>'}).join('');
+  return '<div class="vh"><div><h1>통계</h1><p>이번 주와 최근 14일의 기록</p></div></div>'+
+    '<div class="tiles">'+
+      '<div class="tile"><span class="k">이번 주 연습 시간</span><span class="v">'+fmtDur(wsec)+'</span><span class="s">지난주 '+fmtDur(psec)+'</span></div>'+
+      '<div class="tile"><span class="k">이번 주 완료한 일정</span><span class="v">'+wd+' / '+wt.length+'</span><span class="s">'+(wt.length?Math.round(wd/wt.length*100)+'% 완료':'이번 주 일정 없음')+'</span></div>'+
+      '<div class="tile"><span class="k">진행 중인 프로젝트</span><span class="v">'+act.length+'</span><span class="s">'+(near?'가장 가까운 마감 '+dday(near.due):'마감 없음')+'</span></div>'+
+      '<div class="tile"><span class="k">평균 템포 달성률</span><span class="v">'+avg+'%</span><span class="s">연습곡 '+tp.length+'곡 기준</span></div>'+
+    '</div>'+
+    '<div class="grid2" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">'+
+      '<section class="panel"><div class="ph"><h2>하루 연습 시간 (분)</h2></div><div class="chart" id="ch-prac"></div></section>'+
+      '<section class="panel"><div class="ph"><h2>완료한 일정 (개)</h2><div class="legend"><span><i class="sw"></i>음악 작업</span><span><i class="sw piano"></i>피아노 연습</span></div></div><div class="chart" id="ch-done"></div></section>'+
+      '<section class="panel"><div class="ph"><h2>곡별 템포 달성률</h2></div>'+(tp.length?'<div class="hbars">'+tp.map(function(p){var r=Math.min(100,Math.round(p.currentBpm/p.targetBpm*100));return '<div class="hbar piano"><div class="hl"><span>'+esc(p.title)+'</span><span>'+p.currentBpm+' / '+p.targetBpm+' BPM · '+r+'%</span></div><div class="track"><i style="width:'+r+'%"></i></div></div>'}).join('')+'</div>':'<p class="empty">연습곡이 없습니다.</p>')+'</section>'+
+      '<section class="panel"><div class="ph"><h2>프로젝트 진행률</h2></div>'+(S.projects.length?'<div class="hbars">'+S.projects.map(function(p){return '<div class="hbar"><div class="hl"><span>'+esc(p.name)+'</span><span>'+(p.due?dday(p.due)+' · ':'')+p.progress+'%</span></div><div class="track"><i style="width:'+p.progress+'%"></i></div></div>'}).join('')+'</div>':'<p class="empty">프로젝트가 없습니다.</p>')+'</section>'+
+    '</div>'+
+    '<details class="tbl panel" style="margin-top:16px"><summary>최근 14일 기록을 표로 보기</summary><div class="tblwrap"><table><thead><tr><th>날짜</th><th>연습(분)</th><th>작업 완료</th><th>피아노 완료</th></tr></thead><tbody>'+rows+'</tbody></table></div></details>';
+}
+function barChart(el,cfg){
+  if(!el)return;
+  var W=Math.max(260,el.clientWidth),H=190,m={t:20,r:6,b:22,l:30},n=cfg.days.length;
+  var tot=cfg.days.map(function(_,i){return cfg.series.reduce(function(a,s){return a+s.vals[i]},0)});
+  var mx=Math.max.apply(null,tot.concat([1])),steps=[1,2,5,10,15,30,60,120,240],st=steps[steps.length-1];
+  for(var k=0;k<steps.length;k++){if(mx/steps[k]<=4){st=steps[k];break}}
+  var top=Math.ceil(mx/st)*st,iw=W-m.l-m.r,ih=H-m.t-m.b,band=iw/n,bw=Math.min(22,band*.62),base=m.t+ih;
+  var h='<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+esc(cfg.label)+'">';
+  for(var v=0;v<=top;v+=st){var y=base-v/top*ih;h+='<line x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+y+'" y2="'+y+'" stroke="'+(v?'#2a2833':'#4a4758')+'" stroke-width="1"/><text x="'+(m.l-6)+'" y="'+(y+4)+'" text-anchor="end">'+v+'</text>'}
+  var every=Math.max(1,Math.ceil(n/Math.floor(iw/40))),imax=tot.indexOf(Math.max.apply(null,tot));
+  for(var i=0;i<n;i++){
+    var x=m.l+band*i+(band-bw)/2,yy=base;
+    h+='<g class="col" data-i="'+i+'"><rect class="hit" x="'+(m.l+band*i)+'" y="'+m.t+'" width="'+band+'" height="'+ih+'" fill="transparent"/>';
+    var live=cfg.series.filter(function(s){return s.vals[i]>0});
+    live.forEach(function(s,j){
+      var hh=s.vals[i]/top*ih,gap=j>0?2:0,y0=yy-hh,hv=Math.max(1,hh-gap),isTop=j===live.length-1,r=isTop?Math.min(4,hv,bw/2):0;
+      h+='<path d="M'+x+','+(y0+hv)+'V'+(y0+r)+'Q'+x+','+y0+' '+(x+r)+','+y0+'H'+(x+bw-r)+'Q'+(x+bw)+','+y0+' '+(x+bw)+','+(y0+r)+'V'+(y0+hv)+'Z" fill="'+s.color+'"/>';
+      yy=y0;
+    });
+    if(i===imax&&tot[i]>0)h+='<text class="val" x="'+(x+bw/2)+'" y="'+(yy-6)+'" text-anchor="middle">'+tot[i]+'</text>';
+    if((n-1-i)%every===0)h+='<text x="'+(x+bw/2)+'" y="'+(H-5)+'" text-anchor="middle"'+(i===n-1?' class="val"':'')+'>'+(i===n-1?'오늘':fmtShort(cfg.days[i]))+'</text>';
+    h+='</g>';
+  }
+  el.innerHTML=h+'</svg><div class="tip"></div>';
+  var tip=el.querySelector('.tip'),cols=el.querySelectorAll('.col');
+  function show(g){
+    var i=+g.dataset.i;cols.forEach(function(c){c.classList.toggle('on',c===g)});
+    tip.innerHTML='<b>'+fmtDay(cfg.days[i])+'</b>'+cfg.series.map(function(s){return '<span><i class="sw '+(s.cls||'')+'"></i>'+esc(s.name)+' '+s.vals[i]+cfg.unit+'</span>'}).join('');
+    tip.style.display='block';
+    var cx=(m.l+band*i+band/2)/W*el.clientWidth,tw=tip.offsetWidth,left=Math.max(0,Math.min(el.clientWidth-tw,cx-tw/2));
+    tip.style.left=left+'px';tip.style.top='-6px';
+  }
+  function hide(){tip.style.display='none';cols.forEach(function(c){c.classList.remove('on')})}
+  cols.forEach(function(g){g.addEventListener('pointerenter',function(){show(g)});g.addEventListener('pointerdown',function(){show(g)})});
+  el.addEventListener('pointerleave',hide);
+}
+function drawCharts(){
+  if(ui.view!=='stats')return;var D=statData();
+  barChart($('#ch-prac'),{days:D.days,unit:'분',label:'최근 14일 하루 연습 시간',series:[{name:'연습',cls:'piano',color:'#c08a1e',vals:D.prac}]});
+  barChart($('#ch-done'),{days:D.days,unit:'개',label:'최근 14일 완료한 일정',series:[{name:'음악 작업',cls:'',color:'#8a7df0',vals:D.dp},{name:'피아노 연습',cls:'piano',color:'#c08a1e',vals:D.dq}]});
+}
+function render(){
+  var links=VIEWS.map(function(v){return '<a href="#'+v[0]+'"'+(ui.view===v[0]?' aria-current="page"':'')+'>'}),
+      nav=VIEWS.map(function(v,i){return links[i]+v[1]+'</a>'}).join(''),
+      tabs=VIEWS.map(function(v,i){return links[i]+ic(v[0])+'<span>'+v[1]+'</span></a>'}).join('');
+  $('#nav').innerHTML=nav;$('#tabs').innerHTML=tabs;
+  var f={today:vToday,calendar:vCalendar,studio:vStudio,piano:vPiano,stats:vStats}[ui.view];
+  $('#view').innerHTML=f();
+  drawCharts();tickUI();
+}
+function route(){
+  var h=(location.hash||'').replace('#','');
+  var nv=VIEWS.some(function(v){return v[0]===h})?h:'today';
+  var changed=nv!==ui.view;ui.view=nv;render();if(changed)window.scrollTo(0,0);
+}
+
+/* ---------- 백업 ---------- */
+function exportText(){var o=JSON.parse(JSON.stringify(S));o.exportedAt=new Date().toISOString();o.app='studio-log';return JSON.stringify(o,null,2)}
+function backupSheet(){
+  sheet('백업과 복원',
+    '<p class="help">모든 일정과 기록은 이 브라우저에 자동 저장됩니다. 기기를 바꾸거나 브라우저 데이터를 지우기 전에 JSON으로 내보내 두세요.</p>'+
+    '<div class="t-btns"><button type="button" class="btn primary" data-act="export-file">JSON 파일로 내보내기</button><button type="button" class="btn" data-act="export-copy">JSON 복사</button></div>'+
+    '<hr>'+
+    '<label class="f"><span>JSON 파일 불러오기</span><input type="file" id="f-file" accept=".json,application/json"></label>'+
+    '<label class="f"><span>또는 JSON 붙여넣기</span><textarea id="f-json" name="json" placeholder="내보낸 JSON 내용을 붙여넣으세요"></textarea></label>'+
+    '<p class="err" id="f-err" role="alert"></p>'+
+    '<div class="sheet-foot"><button type="button" class="btn danger" data-act="wipe">모든 기록 지우기</button><span class="sp"></span><button class="btn">불러와서 바꾸기</button></div>'+
+    '<p class="help">불러오면 지금 기록이 불러온 내용으로 바뀝니다. 바로 되돌릴 수 있습니다.</p>',
+    function(fd){
+      var file=$('#f-file').files[0],txt=(fd.get('json')||'').trim();
+      if(file){var r=new FileReader();r.onload=function(){importText(String(r.result))};r.onerror=function(){ferr('파일을 읽지 못했습니다. 다시 선택하세요.')};r.readAsText(file)}
+      else if(txt)importText(txt);
+      else ferr('파일을 고르거나 JSON을 붙여넣으세요.');
+    });
+}
+function importText(txt){
+  var o;try{o=JSON.parse(txt)}catch(e){return ferr('JSON 형식이 아닙니다. 내보낸 파일을 그대로 사용하세요.')}
+  if(!o||!Array.isArray(o.tasks)||!Array.isArray(o.projects)||!Array.isArray(o.pieces))return ferr('스튜디오 로그 백업 파일이 아닙니다. tasks, projects, pieces 항목이 필요합니다.');
+  closeSheet();
+  withUndo('기록을 불러왔습니다.',function(){S=normalize(o);resetTimer()});
+}
+function exportFile(){
+  var data=exportText(),name='studio-log-'+today()+'.json';
+  if(dl){dl.save({filename:name,data:data}).then(function(){toast('JSON 파일을 내보냈습니다.')},function(e){toast(e&&e.code==='declined'?'내보내기를 취소했습니다.':'여기서는 파일 저장이 안 됩니다. JSON 복사를 사용하세요.')});return}
+  try{var a=document.createElement('a');a.href=URL.createObjectURL(new Blob([data],{type:'application/json'}));a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(function(){URL.revokeObjectURL(a.href)},2000);
+    toast(window.claude?'다운로드가 시작되지 않으면 JSON 복사를 사용하세요.':'JSON 파일을 내보냈습니다.')}catch(e){toast('파일 저장이 안 됩니다. JSON 복사를 사용하세요.')}
+}
+function exportCopy(){
+  var data=exportText(),ta=$('#f-json');
+  var fb=function(){if(ta){ta.value=data;ta.focus();ta.select()}toast('아래 칸에 JSON을 넣었습니다. 직접 복사하세요.')};
+  try{navigator.clipboard.writeText(data).then(function(){toast('JSON을 복사했습니다.')},fb)}catch(e){fb()}
+}
+
+/* ---------- 이벤트 ---------- */
+var ACT={
+  'undo':function(){if(undoSnap){S=normalize(JSON.parse(undoSnap));undoSnap=null;save();render();toast('되돌렸습니다.')}},
+  'close-sheet':closeSheet,
+  'backup':backupSheet,
+  'export-file':exportFile,'export-copy':exportCopy,
+  'wipe':function(){closeSheet();withUndo('모든 기록을 지웠습니다.',function(){S=blank()})},
+  'clear-sample':function(){withUndo('예시를 지웠습니다.',function(){['tasks','projects','pieces'].forEach(function(k){S[k]=S[k].filter(function(x){return !x.sample})});resetTimer()})},
+  'new-task':function(b){taskForm(null,{date:b.dataset.date,cat:b.dataset.cat})},
+  'edit-task':function(b){var t=find(S.tasks,b.dataset.id);if(t)taskForm(t)},
+  'del-task':function(b){closeSheet();withUndo('일정을 삭제했습니다.',function(){S.tasks=S.tasks.filter(function(t){return t.id!==b.dataset.id})})},
+  'cycle':function(b){var t=find(S.tasks,b.dataset.id);if(!t)return;t.status={todo:'doing',doing:'done',done:'todo'}[t.status];t.doneAt=t.status==='done'?today():'';save();render();
+    var nb=document.querySelector('[data-act="cycle"][data-id="'+t.id+'"]');if(nb)nb.focus()},
+  'goto-day':function(b){ui.calSel=ui.calCursor=b.dataset.date;ui.calMode='month';location.hash='calendar'},
+  'sel-day':function(b){ui.calSel=b.dataset.date;if(pd(ui.calSel).getMonth()!==pd(ui.calCursor).getMonth())ui.calCursor=ui.calSel;render()},
+  'cal-mode':function(b){ui.calMode=b.dataset.m;ui.calCursor=ui.calSel;render()},
+  'cal-nav':function(b){var n=+b.dataset.d;if(ui.calMode==='week')ui.calCursor=addD(ui.calCursor,7*n);else{var d=pd(ui.calCursor);ui.calCursor=ymd(new Date(d.getFullYear(),d.getMonth()+n,1))}render()},
+  'cal-today':function(){ui.calCursor=ui.calSel=today();render()},
+  'new-proj':function(){projForm(null)},
+  'edit-proj':function(b){var p=find(S.projects,b.dataset.id);if(p)projForm(p)},
+  'del-proj':function(b){closeSheet();withUndo('프로젝트를 삭제했습니다.',function(){S.projects=S.projects.filter(function(p){return p.id!==b.dataset.id})})},
+  'filter':function(b){ui.filter=b.dataset.f;render()},
+  'new-piece':function(){pieceForm(null)},
+  'edit-piece':function(b){var p=find(S.pieces,b.dataset.id);if(p)pieceForm(p)},
+  'del-piece':function(b){closeSheet();withUndo('연습곡을 삭제했습니다.',function(){S.pieces=S.pieces.filter(function(p){return p.id!==b.dataset.id});if(T().pieceId===b.dataset.id)resetTimer()})},
+  'bpm':function(b){var p=find(S.pieces,b.dataset.id);if(!p)return;p.currentBpm=Math.max(20,Math.min(300,p.currentBpm+(+b.dataset.d)));save();render();
+    var nb=document.querySelector('[data-act="bpm"][data-id="'+p.id+'"][data-d="'+b.dataset.d+'"]');if(nb)nb.focus()},
+  'add-log':function(b){var p=find(S.pieces,b.dataset.id);if(p)logForm(p)},
+  'del-log':function(b){var p=find(S.pieces,b.dataset.id);if(!p)return;withUndo('기록을 삭제했습니다.',function(){p=find(S.pieces,b.dataset.id);p.logs=p.logs.filter(function(l){return l.id!==b.dataset.log})})},
+  'toggle-logs':function(b){ui.openLogs[b.dataset.id]=!ui.openLogs[b.dataset.id];render()},
+  't-pick':function(b){var t=T();if(t.pieceId!==b.dataset.id&&(t.running||tPracticed()>=1000))return toast('지금 연습을 먼저 기록하거나 초기화하세요.');
+    t.pieceId=b.dataset.id;save();render();var el=$('#timer');if(el)el.scrollIntoView({behavior:'smooth',block:'start'})},
+  't-mode':function(b){var t=T();if(t.mode===b.dataset.m)return;if(t.running||tPracticed()>=1000||t.acc>0)return toast('지금 연습을 먼저 기록하거나 초기화하세요.');t.mode=b.dataset.m;resetTimer();save();render()},
+  't-toggle':function(){var t=T();
+    if(t.running){t.acc=tElapsed();t.running=false}
+    else{try{audio=audio||new (window.AudioContext||window.webkitAudioContext)();if(audio.state==='suspended')audio.resume()}catch(e){}t.startedAt=Date.now();t.running=true}
+    save();render()},
+  't-reset':function(){resetTimer();save();render()},
+  't-finish':function(){var t=T(),p=find(S.pieces,t.pieceId);if(!p)return;if(t.running){t.acc=tElapsed();t.running=false;save();render()}logForm(p,tPracticed()/1000,true)}
+};
+document.addEventListener('click',function(e){var b=e.target.closest('[data-act]');if(!b||b.disabled)return;var f=ACT[b.dataset.act];if(f)f(b,e)});
+document.addEventListener('submit',function(e){e.preventDefault();if(e.target.id==='sheet-form'&&sheetSubmit)sheetSubmit(new FormData(e.target))});
+document.addEventListener('input',function(e){var r=e.target.dataset&&e.target.dataset.range;if(!r)return;var p=find(S.projects,r);if(!p)return;p.progress=+e.target.value;e.target.style.setProperty('--v',p.progress+'%');var o=$('#out-'+r);if(o)o.textContent=p.progress+'%'});
+document.addEventListener('change',function(e){
+  var el=e.target,d=el.dataset||{};
+  if(d.range){save();render();var n=$('#rg-'+d.range);if(n)n.focus();return}
+  if(d.change==='t-piece'){var t=T();if(t.running||tPracticed()>=1000){el.value=t.pieceId;return toast('지금 연습을 먼저 기록하거나 초기화하세요.')}t.pieceId=el.value;save()}
+  if(d.change==='t-focus'){S.settings.focus=Math.max(1,Math.min(120,Math.round(+el.value)||25));save();render()}
+  if(d.change==='t-rest'){S.settings.rest=Math.max(1,Math.min(60,Math.round(+el.value)||5));save();render()}
+});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!$('#sheet').hidden)closeSheet()});
+window.addEventListener('hashchange',route);
+var rz;window.addEventListener('resize',function(){clearTimeout(rz);rz=setTimeout(drawCharts,150)});
+document.addEventListener('visibilitychange',function(){if(!document.hidden)tickUI()});
+
+/* ---------- 시작 ---------- */
+S=load();T();
+route();
+setInterval(tickUI,500);
+try{if(window.claude&&window.claude.use)window.claude.use('downloads').then(function(d){dl=d||null},function(){})}catch(e){}
+})();
+</script>
+</body>
+</html>
