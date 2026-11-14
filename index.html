@@ -317,6 +317,7 @@ hr{border:0;border-top:1px solid var(--line);margin:2px 0;width:100%}
     <nav class="nav" id="nav" aria-label="주 메뉴"></nav>
     <div class="top-tools">
       <a class="pill-timer mono" id="pill" href="#piano" style="text-decoration:none" aria-label="연습 타이머로 이동"></a>
+      <button class="btn sm ghost" data-act="sync" id="btn-sync">동기화</button>
       <button class="btn sm ghost" data-act="backup" id="btn-backup">백업</button>
     </div>
   </div>
@@ -433,7 +434,7 @@ function load(){
   try{var raw=localStorage.getItem(KEY);if(raw)return normalize(JSON.parse(raw))}catch(e){storageOK=false}
   return seed();
 }
-function save(){try{localStorage.setItem(KEY,JSON.stringify(S));storageOK=true}catch(e){storageOK=false}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(S));storageOK=true}catch(e){storageOK=false}syncTouch()}
 function hasSample(){return S.tasks.concat(S.projects,S.pieces).some(function(x){return x.sample})}
 function find(list,id){for(var i=0;i<list.length;i++)if(list[i].id===id)return list[i];return null}
 function withUndo(msg,fn){undoSnap=JSON.stringify(S);fn();save();render();toast(msg,true)}
@@ -451,7 +452,7 @@ function sheet(title,body,onSubmit){
   el.hidden=false;sheetSubmit=onSubmit||null;
   var f=el.querySelector('input:not([type=radio]):not([type=checkbox]):not([type=file]),textarea,select');if(f)setTimeout(function(){f.focus()},30);
 }
-function closeSheet(){$('#sheet').hidden=true;$('#sheet').innerHTML='';sheetSubmit=null}
+function closeSheet(){$('#sheet').hidden=true;$('#sheet').innerHTML='';sheetSubmit=null;if(sync.queued){var q=sync.queued;sync.queued=null;setTimeout(function(){onRemote(q)},0)}}
 function ferr(msg){var e=$('#f-err');if(e)e.textContent=msg}
 function segRadio(name,opts,val){return '<div class="seg">'+opts.map(function(o){return '<label><input type="radio" name="'+name+'" id="f-'+name+'-'+o[0]+'" value="'+o[0]+'"'+(o[0]===val?' checked':'')+'><span>'+o[1]+'</span></label>'}).join('')+'</div>'}
 
@@ -990,11 +991,134 @@ var rz;window.addEventListener('resize',function(){clearTimeout(rz);rz=setTimeou
 document.addEventListener('visibilitychange',function(){if(document.hidden)metroStop();else tickUI()});
 window.addEventListener('pagehide',metroStop);
 
+/* ---------- 기기 간 동기화 (Firebase) ---------- */
+var FB_CFG={apiKey:"AIzaSyCsXw4GbpgEubt5DbFXxonydnK30WmrFdM",authDomain:"scedule-data.firebaseapp.com",projectId:"scedule-data",storageBucket:"scedule-data.firebasestorage.app",messagingSenderId:"118376106672",appId:"1:118376106672:web:37f8b7d16e78bf98094975"};
+var FB_VER='10.12.2',SKEY='studio-log-sync';
+var sync={state:'loading',user:null,unsub:null,pushT:null,lastStr:'',err:'',first:false,choice:null,queued:null,at:0};
+var meta=(function(){try{return JSON.parse(localStorage.getItem(SKEY))||{}}catch(e){return{}}})();
+function saveMeta(){try{localStorage.setItem(SKEY,JSON.stringify(meta))}catch(e){}}
+function cloudStr(){var o=JSON.parse(JSON.stringify(S));delete o.timer;return JSON.stringify(o)}
+function meaningful(){return S.tasks.concat(S.projects,S.pieces).some(function(x){return !x.sample})}
+function loadScript(src){return new Promise(function(res,rej){var s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s)})}
+function syncErr(e){
+  var c=e&&e.code||'';
+  return c==='permission-denied'?'Firestore 보안 규칙이 막고 있습니다. Firebase 콘솔의 규칙을 확인하세요.':
+    c==='auth/unauthorized-domain'?'이 주소가 Firebase 승인된 도메인에 없습니다. Authentication 설정에서 추가하세요.':
+    c==='auth/popup-blocked'?'로그인 창이 차단됐습니다. 브라우저에서 팝업을 허용하고 다시 누르세요.':
+    c==='auth/popup-closed-by-user'||c==='auth/cancelled-popup-request'?'로그인을 취소했습니다.':
+    c==='auth/operation-not-allowed'?'Firebase에서 Google 로그인이 꺼져 있습니다. Authentication의 로그인 방법에서 켜세요.':
+    c==='unavailable'?'인터넷 연결을 확인하세요. 연결되면 자동으로 다시 시도합니다.':
+    '동기화하지 못했습니다'+(c?' ('+c+')':'')+'. 잠시 뒤 다시 시도하세요.';
+}
+function syncUI(){
+  var b=$('#btn-sync');if(!b)return;
+  var txt={loading:'동기화',unavailable:'동기화',out:'동기화 켜기',on:'동기화됨',saving:'저장 중…',error:'동기화 오류'}[sync.state]||'동기화';
+  if(sync.choice)txt='기록 선택 필요';
+  b.textContent=txt;b.className='btn sm '+(sync.state==='error'||sync.choice?'danger':'ghost');
+  if($('#sync-sheet-mark'))syncSheet();
+}
+function syncInit(){
+  if(location.protocol!=='https:'&&location.hostname!=='localhost'){sync.state='unavailable';syncUI();return}
+  var base='https://www.gstatic.com/firebasejs/'+FB_VER+'/';
+  loadScript(base+'firebase-app-compat.js').then(function(){return loadScript(base+'firebase-auth-compat.js')}).then(function(){return loadScript(base+'firebase-firestore-compat.js')}).then(function(){
+    firebase.initializeApp(FB_CFG);
+    firebase.auth().onAuthStateChanged(function(u){
+      if(sync.unsub){sync.unsub();sync.unsub=null}
+      sync.user=u;sync.choice=null;sync.queued=null;
+      if(!u){sync.state='out';syncUI();return}
+      sync.state='on';syncUI();syncStart(u);
+    });
+  }).catch(function(){sync.state='unavailable';syncUI()});
+}
+function docRef(){return firebase.firestore().collection('users').doc(sync.user.uid)}
+function syncStart(u){
+  sync.first=meta.uid!==u.uid;
+  if(sync.first){meta={uid:u.uid,last:0,dirty:false,mod:0};saveMeta()}
+  sync.unsub=docRef().onSnapshot(function(snap){
+    if(snap.metadata.hasPendingWrites)return;
+    var d=snap.exists?snap.data():null;
+    if(sync.state==='error'){sync.state='on';sync.err=''}
+    if(sync.choice){if(d)sync.choice=d;return}
+    if(sync.first){
+      sync.first=false;
+      if(!d){if(meaningful())pushNow();else syncUI();return}
+      if(meaningful()&&d.data!==cloudStr()){sync.choice=d;syncUI();askWhich();return}
+      applyRemote(d,false);return;
+    }
+    onRemote(d);
+  },function(e){sync.state='error';sync.err=syncErr(e);syncUI()});
+}
+function onRemote(d){
+  if(!d||!d.updatedAt||d.updatedAt<=meta.last){
+    if(meta.dirty&&cloudStr()!==sync.lastStr)pushNow();
+    else{if(!sync.lastStr)sync.lastStr=cloudStr();syncUI()}
+    return;
+  }
+  if(meta.dirty&&meta.mod>d.updatedAt){pushNow();return}
+  if(!$('#sheet').hidden&&!$('#sync-sheet-mark')){sync.queued=d;return}
+  applyRemote(d,true);
+}
+function applyRemote(d,notify){
+  var o;try{o=JSON.parse(d.data)}catch(e){return}
+  var timer=S.timer;metroStop();undoSnap=null;
+  S=normalize(o);S.timer=timer;T();
+  meta.last=d.updatedAt||Date.now();meta.dirty=false;saveMeta();
+  sync.lastStr=cloudStr();sync.at=meta.last;sync.state='on';sync.err='';
+  try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
+  render();syncUI();
+  if(notify)toast('다른 기기에서 바뀐 기록을 불러왔습니다.');
+}
+function syncTouch(){
+  if(!sync.user||sync.first||sync.choice)return;
+  if(cloudStr()===sync.lastStr)return;
+  meta.dirty=true;meta.mod=Date.now();saveMeta();
+  sync.state='saving';syncUI();
+  clearTimeout(sync.pushT);sync.pushT=setTimeout(pushNow,1200);
+}
+function pushNow(){
+  if(!sync.user||sync.choice)return;
+  clearTimeout(sync.pushT);
+  var s=cloudStr(),ts=Date.now();
+  meta.last=ts;meta.dirty=true;saveMeta();sync.lastStr=s;sync.state='saving';syncUI();
+  docRef().set({data:s,updatedAt:ts}).then(function(){
+    if(sync.lastStr===s){meta.dirty=false;saveMeta();sync.state='on';sync.err='';sync.at=ts;syncUI()}
+  },function(e){sync.state='error';sync.err=syncErr(e);syncUI()});
+}
+function countText(x){return '프로젝트 '+(x.projects||[]).length+'개 · 일정 '+(x.tasks||[]).length+'개 · 연습곡 '+(x.pieces||[]).length+'개'}
+function askWhich(){
+  var o={};try{o=JSON.parse(sync.choice.data)}catch(e){}
+  var st='style="white-space:normal;min-height:0;padding:10px 14px;justify-content:flex-start;text-align:left"';
+  sheet('어느 기록을 쓸까요?',
+    '<p class="help">이 기기와 클라우드에 서로 다른 기록이 있습니다. 고르지 않은 쪽은 사라집니다. 걱정되면 닫은 뒤 백업에서 JSON으로 먼저 내보내세요.</p>'+
+    '<div class="stack"><button type="button" class="btn" '+st+' data-act="sync-use-cloud">클라우드 기록 쓰기<br>'+countText(o)+'</button>'+
+    '<button type="button" class="btn" '+st+' data-act="sync-use-local">이 기기 기록 쓰기<br>'+countText(S)+'</button></div>');
+}
+function syncSheet(){
+  var body='<span id="sync-sheet-mark" hidden></span>';
+  if(sync.choice){askWhich();return}
+  if(sync.state==='loading')body+='<p class="help">동기화 서버에 연결하고 있습니다.</p>';
+  else if(sync.state==='unavailable')body+='<p class="help">지금 연 주소에서는 동기화를 쓸 수 없습니다. 아래 주소로 열면 Google 로그인으로 맥북, 윈도우, 휴대폰의 기록을 맞출 수 있습니다.</p><p><a href="https://7hyun29.github.io/Schedule-website/" style="color:var(--prod-ink);overflow-wrap:anywhere">https://7hyun29.github.io/Schedule-website/</a></p><p class="help">내려받은 파일을 직접 열었거나 인터넷이 끊겨 있으면 이 안내가 나옵니다. 기록은 이 브라우저에 그대로 저장됩니다.</p>';
+  else if(!sync.user)body+='<p class="help">Google 계정으로 로그인하면 기록이 클라우드에 저장되고, 같은 계정으로 로그인한 다른 기기에 자동으로 반영됩니다.</p>'+(sync.err?'<p class="err" role="alert">'+esc(sync.err)+'</p>':'')+'<div class="sheet-foot"><span class="sp"></span><button type="button" class="btn primary" data-act="sync-login">Google 계정으로 로그인</button></div>';
+  else body+='<dl class="kv"><dt>계정</dt><dd style="overflow-wrap:anywhere">'+esc(sync.user.email||sync.user.displayName||'')+'</dd><dt>상태</dt><dd>'+(sync.state==='saving'?'저장 중…':sync.state==='error'?'오류':'최신 상태')+(meta.last?' · 마지막 동기화 '+new Date(meta.last).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}):'')+'</dd></dl>'+
+    (sync.err?'<p class="err" role="alert">'+esc(sync.err)+'</p>':'')+
+    '<p class="help">기록을 바꾸면 1~2초 뒤 자동으로 올라갑니다. 두 기기에서 동시에 고치면 나중에 저장한 쪽이 남습니다. 연습 타이머는 기기마다 따로 돕니다.</p>'+
+    '<div class="sheet-foot"><button type="button" class="btn danger" data-act="sync-logout">로그아웃</button><span class="sp"></span><button type="button" class="btn" data-act="sync-now">지금 동기화</button></div>';
+  sheet('기기 간 동기화',body);
+}
+ACT['sync']=syncSheet;
+ACT['sync-login']=function(){sync.err='';try{firebase.auth().signInWithPopup(new firebase.auth.GoogleAuthProvider()).then(function(){closeSheet();toast('로그인했습니다. 기록을 맞추는 중입니다.')},function(e){sync.err=syncErr(e);syncUI()})}catch(e){sync.err=syncErr(e);syncUI()}};
+ACT['sync-logout']=function(){clearTimeout(sync.pushT);firebase.auth().signOut().then(function(){closeSheet();toast('로그아웃했습니다. 기록은 이 기기에 남아 있습니다.')})};
+ACT['sync-now']=function(){if(meta.dirty||cloudStr()!==sync.lastStr){pushNow();return}
+  docRef().get({source:'server'}).then(function(snap){onRemote(snap.exists?snap.data():null);toast('최신 상태입니다.')},function(e){sync.state='error';sync.err=syncErr(e);syncUI()})};
+ACT['sync-use-cloud']=function(){var d=sync.choice;sync.choice=null;closeSheet();if(d)applyRemote(d,false);toast('클라우드 기록을 불러왔습니다.')};
+ACT['sync-use-local']=function(){sync.choice=null;closeSheet();pushNow();toast('이 기기 기록을 클라우드에 올렸습니다.')};
+
 /* ---------- 시작 ---------- */
 $('#brand-icon').src=$('#app-icon').href;$('#touch-icon').href=$('#app-icon').href;
 S=load();T();
 route();
 setInterval(tickUI,500);
+syncUI();syncInit();
 try{if(window.claude&&window.claude.use)window.claude.use('downloads').then(function(d){dl=d||null},function(){})}catch(e){}
 })();
 </script>
