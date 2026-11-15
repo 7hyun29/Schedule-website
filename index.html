@@ -189,6 +189,9 @@ input[type=range]::-moz-range-thumb{width:14px;height:24px;border-radius:3px;bac
 .metro-dot{width:16px;height:16px;border-radius:50%;background:var(--raised);border:1px solid var(--piano)}
 .metro-dot.on{background:var(--piano-ink);box-shadow:0 0 0 3px var(--piano-wash)}
 .repeat-options{display:grid;gap:10px}
+.tp{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1.2fr) auto minmax(0,1fr);gap:8px;align-items:center}
+.tp i{width:1px;height:24px;background:var(--line)}
+.tp b{color:var(--ink-2);font:600 16px/1 var(--f-mono)}
 .repeat-options[hidden]{display:none}
 /* 피아노 */
 .timer{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:20px;align-items:center;border-color:#4a3c1c;background:linear-gradient(180deg,#1f1c1a,#1b1a22)}
@@ -344,6 +347,22 @@ var KEY='studio-log-v1';
 var TAGS=['작곡/편곡','녹음','믹싱/마스터링','사운드 디자인/미들웨어'];
 var STATUS={todo:'예정',doing:'진행 중',done:'완료'};
 var CAT={prod:'음악 작업',piano:'피아노 연습',job:'알바',etc:'기타 일정'};
+function timePick(name,label,val){
+  var ok=/^\d{2}:\d{2}$/.test(val||''),H=ok?+val.slice(0,2):-1,M=ok?val.slice(3):'00',ap=H>=12?'pm':'am',h12=H<0?'':String(H%12||12),mins=[],i;
+  for(i=0;i<60;i+=5)mins.push(pad(i));
+  if(mins.indexOf(M)<0){mins.push(M);mins.sort()}
+  var hs='<option value="">시간 없음</option>';for(i=1;i<=12;i++)hs+='<option value="'+i+'"'+(String(i)===h12?' selected':'')+'>'+pad(i)+'시</option>';
+  return '<div class="f"><span>'+label+'</span><div class="tp">'+
+    '<select id="tp-'+name+'-ap" data-tp="'+name+'" aria-label="'+label+' 오전 오후"><option value="am"'+(ap==='am'?' selected':'')+'>오전</option><option value="pm"'+(ap==='pm'||H<0?' selected':'')+'>오후</option></select>'+
+    '<i aria-hidden="true"></i><select id="tp-'+name+'-h" data-tp="'+name+'" aria-label="'+label+' 시">'+hs+'</select>'+
+    '<b aria-hidden="true">:</b><select id="tp-'+name+'-m" data-tp="'+name+'" aria-label="'+label+' 분">'+mins.map(function(m){return '<option value="'+m+'"'+(m===M?' selected':'')+'>'+m+'분</option>'}).join('')+'</select>'+
+    '<input type="hidden" id="tp-'+name+'" name="'+name+'" value="'+(ok?val:'')+'"></div></div>';
+}
+function tpSync(name){
+  var h=$('#tp-'+name+'-h').value,out=$('#tp-'+name);
+  if(!h){out.value='';return}
+  out.value=pad((+h%12)+($('#tp-'+name+'-ap').value==='pm'?12:0))+':'+$('#tp-'+name+'-m').value;
+}
 function timeText(t){return t.time?t.time+(t.timeEnd?'–'+t.timeEnd:''):''}
 var WD=['일','월','화','수','목','금','토'];
 var VIEWS=[['today','오늘'],['calendar','캘린더'],['studio','작업실'],['piano','피아노'],['stats','통계']];
@@ -506,7 +525,7 @@ function taskForm(t,preset){
     '<label class="f"><span>제목</span><input type="text" id="f-title" name="title" value="'+esc(t.title)+'" placeholder="예: 2절 스트링 편곡" autocomplete="off"></label>'+
     '<fieldset class="f"><legend>분류</legend>'+segRadio('cat',[['prod','음악 작업'],['piano','피아노 연습'],['job','알바'],['etc','기타']],t.cat)+'</fieldset>'+
     '<label class="f"><span>날짜</span><input type="date" id="f-date" name="date" value="'+t.date+'"></label>'+
-    '<div class="row2"><label class="f"><span>시작 시간 (선택)</span><input type="time" id="f-time" name="time" value="'+esc(t.time||'')+'"></label><label class="f"><span>종료 시간 (선택)</span><input type="time" id="f-time-end" name="timeEnd" value="'+esc(t.timeEnd||'')+'"></label></div>'+
+    timePick('time','시작 시간 (선택)',t.time)+timePick('timeEnd','종료 시간 (선택)',t.timeEnd)+
     (isNew?'<label class="f"><span>반복</span><select id="f-repeat" name="repeat" data-change="repeat"><option value="">반복 안 함</option><option value="daily">매일</option><option value="weekdays">평일 (월–금)</option><option value="weekly">매주 (선택한 요일)</option></select></label><div class="repeat-options" id="repeat-options" hidden><label class="f"><span>반복 종료일</span><input type="date" id="f-repeat-until" name="repeatUntil" value="'+addD(t.date,90)+'"></label><p class="help">시작일부터 최대 1년까지 만듭니다. 각 날짜의 완료 상태는 따로 관리되며, 수정은 선택한 일정에만 적용됩니다.</p></div>':(t.seriesId?'<p class="help">반복 일정입니다. 수정·삭제는 이 일정에만 적용됩니다.</p>':''))+
     '<fieldset class="f"><legend>상태</legend>'+segRadio('status',[['todo','예정'],['doing','진행 중'],['done','완료']],t.status)+'</fieldset>'+
     '<label class="f"><span>메모 (선택)</span><textarea id="f-note" name="note">'+esc(t.note||'')+'</textarea></label>'+
@@ -988,6 +1007,7 @@ document.addEventListener('submit',function(e){e.preventDefault();if(e.target.id
 document.addEventListener('input',function(e){var r=e.target.dataset&&e.target.dataset.range;if(!r)return;var p=find(S.projects,r);if(!p)return;p.progress=+e.target.value;e.target.style.setProperty('--v',p.progress+'%');var o=$('#out-'+r);if(o)o.textContent=p.progress+'%'});
 document.addEventListener('change',function(e){
   var el=e.target,d=el.dataset||{};
+  if(d.tp){tpSync(d.tp);return}
   if(d.change==='repeat'){repeatOptions();return}
   if(d.change==='metro-bpm'){metroChange(el,'bpm');return}
   if(d.change==='metro-beats'){metroChange(el,'beats');return}
