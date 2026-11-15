@@ -21,6 +21,8 @@
   --ink:#edebf3; --ink-2:#aaa6b9; --ink-3:#7c788f;
   --prod:#8a7df0; --prod-ink:#b9b1fa; --prod-wash:rgba(138,125,240,.15);
   --piano:#c08a1e; --piano-ink:#e9bf6c; --piano-wash:rgba(210,158,56,.15);
+  --job:#22a67c; --job-ink:#74d6b4; --job-wash:rgba(34,166,124,.17);
+  --etc:#8d8a9c; --etc-ink:#c6c3d2; --etc-wash:rgba(141,138,156,.2);
   --ok:#5fbf8f; --alert:#ec8a6f;
   --f-display:"Hahmlet","Noto Serif KR","Apple SD Gothic Neo",serif;
   --f-body:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
@@ -234,6 +236,13 @@ textarea{min-height:84px;resize:vertical;line-height:1.5}
 .tip span{display:flex;align-items:center;gap:6px;color:var(--ink-2)}
 .sw{width:9px;height:9px;border-radius:2px;background:var(--prod);flex:none}
 .sw.piano{background:var(--piano)}
+.sw.job{background:var(--job)} .sw.etc{background:var(--etc)}
+.task.job{border-left-color:var(--job)} .task.etc{border-left-color:var(--etc)}
+.dot.job{background:var(--job)} .dot.etc{background:var(--etc)}
+.chip.job,.ev.job,.wi.job{background:var(--job-wash);color:var(--job-ink)}
+.chip.etc,.ev.etc,.wi.etc{background:var(--etc-wash);color:var(--etc-ink)}
+.legend{flex-wrap:wrap;row-gap:4px}
+.ph{flex-wrap:wrap}
 .legend{display:flex;gap:14px;font-size:12px;color:var(--ink-2)}
 .legend span{display:flex;align-items:center;gap:6px}
 details.tbl{margin-top:10px;font-size:13px}
@@ -334,7 +343,8 @@ hr{border:0;border-top:1px solid var(--line);margin:2px 0;width:100%}
 var KEY='studio-log-v1';
 var TAGS=['작곡/편곡','녹음','믹싱/마스터링','사운드 디자인/미들웨어'];
 var STATUS={todo:'예정',doing:'진행 중',done:'완료'};
-var CAT={prod:'음악 작업',piano:'피아노 연습'};
+var CAT={prod:'음악 작업',piano:'피아노 연습',job:'알바',etc:'기타 일정'};
+function timeText(t){return t.time?t.time+(t.timeEnd?'–'+t.timeEnd:''):''}
 var WD=['일','월','화','수','목','금','토'];
 var VIEWS=[['today','오늘'],['calendar','캘린더'],['studio','작업실'],['piano','피아노'],['stats','통계']];
 var $=function(s,r){return (r||document).querySelector(s)};
@@ -479,7 +489,7 @@ function itemsOn(date){
 }
 function taskRow(t,showDate){
   var late=t.date<today()&&t.status!=='done';
-  var meta=[CAT[t.cat]];if(t.time)meta.push(t.time);if(t.seriesId&&REPEAT[t.repeat])meta.push(REPEAT[t.repeat]+' 반복');
+  var meta=[CAT[t.cat]];if(t.time)meta.push(timeText(t));if(t.seriesId&&REPEAT[t.repeat])meta.push(REPEAT[t.repeat]+' 반복');
   return '<li class="task '+t.cat+' '+t.status+'">'+
     '<button class="st st-'+t.status+'" data-act="cycle" data-id="'+t.id+'" aria-label="상태 바꾸기. 지금은 '+STATUS[t.status]+'">'+ic(t.status)+'<span>'+STATUS[t.status]+'</span></button>'+
     '<button class="task-main" data-act="edit-task" data-id="'+t.id+'"><span class="task-title">'+esc(t.title)+'</span>'+
@@ -494,8 +504,9 @@ function taskForm(t,preset){
   t=t||{title:'',cat:preset.cat||'prod',date:preset.date||today(),time:'',status:'todo',note:''};
   sheet(isNew?'새 일정':'일정 수정',
     '<label class="f"><span>제목</span><input type="text" id="f-title" name="title" value="'+esc(t.title)+'" placeholder="예: 2절 스트링 편곡" autocomplete="off"></label>'+
-    '<fieldset class="f"><legend>분류</legend>'+segRadio('cat',[['prod','음악 작업'],['piano','피아노 연습']],t.cat)+'</fieldset>'+
-    '<div class="row2"><label class="f"><span>날짜</span><input type="date" id="f-date" name="date" value="'+t.date+'"></label><label class="f"><span>시간 (선택)</span><input type="time" id="f-time" name="time" value="'+esc(t.time||'')+'"></label></div>'+
+    '<fieldset class="f"><legend>분류</legend>'+segRadio('cat',[['prod','음악 작업'],['piano','피아노 연습'],['job','알바'],['etc','기타']],t.cat)+'</fieldset>'+
+    '<label class="f"><span>날짜</span><input type="date" id="f-date" name="date" value="'+t.date+'"></label>'+
+    '<div class="row2"><label class="f"><span>시작 시간 (선택)</span><input type="time" id="f-time" name="time" value="'+esc(t.time||'')+'"></label><label class="f"><span>종료 시간 (선택)</span><input type="time" id="f-time-end" name="timeEnd" value="'+esc(t.timeEnd||'')+'"></label></div>'+
     (isNew?'<label class="f"><span>반복</span><select id="f-repeat" name="repeat" data-change="repeat"><option value="">반복 안 함</option><option value="daily">매일</option><option value="weekdays">평일 (월–금)</option><option value="weekly">매주 (선택한 요일)</option></select></label><div class="repeat-options" id="repeat-options" hidden><label class="f"><span>반복 종료일</span><input type="date" id="f-repeat-until" name="repeatUntil" value="'+addD(t.date,90)+'"></label><p class="help">시작일부터 최대 1년까지 만듭니다. 각 날짜의 완료 상태는 따로 관리되며, 수정은 선택한 일정에만 적용됩니다.</p></div>':(t.seriesId?'<p class="help">반복 일정입니다. 수정·삭제는 이 일정에만 적용됩니다.</p>':''))+
     '<fieldset class="f"><legend>상태</legend>'+segRadio('status',[['todo','예정'],['doing','진행 중'],['done','완료']],t.status)+'</fieldset>'+
     '<label class="f"><span>메모 (선택)</span><textarea id="f-note" name="note">'+esc(t.note||'')+'</textarea></label>'+
@@ -505,6 +516,7 @@ function taskForm(t,preset){
       var title=(fd.get('title')||'').trim();
       if(!title)return ferr('제목을 입력하세요.');
       if(!isDate(fd.get('date')))return ferr('날짜를 선택하세요.');
+      if(fd.get('timeEnd')&&!fd.get('time'))return ferr('종료 시간을 넣으려면 시작 시간도 입력하세요.');
       var mode=isNew?fd.get('repeat'):'',dates=null;
       if(mode){
         var start=fd.get('date'),end=fd.get('repeatUntil');
@@ -513,7 +525,7 @@ function taskForm(t,preset){
         if(!dates.length)return ferr('선택한 기간에 반복할 날짜가 없습니다.');
       }
       var o=isNew?{id:uid()}:t;
-      o.title=title;o.cat=fd.get('cat')||'prod';o.date=fd.get('date');o.time=fd.get('time')||'';o.note=(fd.get('note')||'').trim();
+      o.title=title;o.cat=fd.get('cat')||'prod';o.date=fd.get('date');o.time=fd.get('time')||'';o.timeEnd=fd.get('timeEnd')||'';o.note=(fd.get('note')||'').trim();
       var st=fd.get('status')||'todo';o.doneAt=st==='done'?(o.status==='done'&&o.doneAt?o.doneAt:today()):'';o.status=st;
       if(dates){
         var group=uid();
@@ -776,12 +788,12 @@ function vCalendar(){
     for(var i=0;i<7;i++){var c=addD(ws,i),it=itemsOn(c);
       body+='<section class="wcol'+(c===td?' is-today':'')+'"><h3><span>'+WD[pd(c).getDay()]+'요일</span><b>'+pd(c).getDate()+'</b></h3>'+
         it.dl.map(function(p){return '<button class="wi dl" data-act="edit-proj" data-id="'+p.id+'">마감 · '+esc(p.name)+'</button>'}).join('')+
-        it.tasks.map(function(t){return '<button class="wi '+t.cat+(t.status==='done'?' done':'')+'" data-act="edit-task" data-id="'+t.id+'">'+(t.time?'<span class="mono">'+t.time+'</span> ':'')+esc(t.title)+'</button>'}).join('')+
+        it.tasks.map(function(t){return '<button class="wi '+t.cat+(t.status==='done'?' done':'')+'" data-act="edit-task" data-id="'+t.id+'">'+(t.time?'<span class="mono">'+timeText(t)+'</span> ':'')+esc(t.title)+'</button>'}).join('')+
         '<button class="wadd" data-act="new-task" data-date="'+c+'" aria-label="'+fmtDay(c)+'에 일정 추가">+ 추가</button></section>'}
     body+='</div>';
   }
   var sel=ui.calSel,its=itemsOn(sel);
-  return '<div class="vh"><div><h1>캘린더</h1><p>보라색은 음악 작업, 금색은 피아노 연습, 점선은 프로젝트 마감입니다.</p></div>'+
+  return '<div class="vh"><div><h1>캘린더</h1><p>보라색은 음악 작업, 금색은 피아노 연습, 초록색은 알바, 회색은 기타 일정, 점선은 프로젝트 마감입니다.</p></div>'+
     '<div class="calbar"><div class="seg" role="group" aria-label="보기 방식"><button data-act="cal-mode" data-m="month" aria-pressed="'+(ui.calMode==='month')+'">월간</button><button data-act="cal-mode" data-m="week" aria-pressed="'+(ui.calMode==='week')+'">주간</button></div>'+
     '<button class="iconbtn" data-act="cal-nav" data-d="-1" aria-label="이전">'+ic('prev')+'</button><span class="ttl">'+ttl+'</span><button class="iconbtn" data-act="cal-nav" data-d="1" aria-label="다음">'+ic('next')+'</button><button class="btn sm" data-act="cal-today">오늘</button></div></div>'+
     body+
@@ -805,11 +817,11 @@ function vPiano(){
 }
 function statData(){
   var td=today(),days=[],i;for(i=13;i>=0;i--)days.push(addD(td,-i));
-  var prac=days.map(function(){return 0}),dp=days.map(function(){return 0}),dq=days.map(function(){return 0});
+  var prac=days.map(function(){return 0}),dp=days.map(function(){return 0}),dq=days.map(function(){return 0}),dj=days.map(function(){return 0}),de=days.map(function(){return 0});
   S.pieces.forEach(function(p){p.logs.forEach(function(l){var k=days.indexOf(l.date);if(k>=0)prac[k]+=(l.sec||0)/60})});
-  S.tasks.forEach(function(t){if(t.status!=='done')return;var k=days.indexOf(t.doneAt||t.date);if(k>=0){if(t.cat==='prod')dp[k]++;else dq[k]++}});
+  S.tasks.forEach(function(t){if(t.status!=='done')return;var k=days.indexOf(t.doneAt||t.date);if(k>=0){({prod:dp,piano:dq,job:dj,etc:de}[t.cat]||dp)[k]++}});
   prac=prac.map(Math.round);
-  return {days:days,prac:prac,dp:dp,dq:dq};
+  return {days:days,prac:prac,dp:dp,dq:dq,dj:dj,de:de};
 }
 function vStats(){
   var td=today(),ws=weekStart(td),we=addD(ws,6),wsec=0,psec=0;
@@ -818,7 +830,7 @@ function vStats(){
   var act=S.projects.filter(function(p){return p.progress<100}),near=act.filter(function(p){return p.due}).sort(function(a,b){return a.due<b.due?-1:1})[0];
   var tp=S.pieces.filter(function(p){return p.targetBpm>0}),avg=tp.length?Math.round(tp.reduce(function(a,p){return a+Math.min(1,p.currentBpm/p.targetBpm)},0)/tp.length*100):0;
   var D=statData();
-  var rows=D.days.map(function(d,i){return '<tr><td>'+fmtShort(d)+' ('+WD[pd(d).getDay()]+')</td><td>'+D.prac[i]+'</td><td>'+D.dp[i]+'</td><td>'+D.dq[i]+'</td></tr>'}).join('');
+  var rows=D.days.map(function(d,i){return '<tr><td>'+fmtShort(d)+' ('+WD[pd(d).getDay()]+')</td><td>'+D.prac[i]+'</td><td>'+D.dp[i]+'</td><td>'+D.dq[i]+'</td><td>'+D.dj[i]+'</td><td>'+D.de[i]+'</td></tr>'}).join('');
   return '<div class="vh"><div><h1>통계</h1><p>이번 주와 최근 14일의 기록</p></div></div>'+
     '<div class="tiles">'+
       '<div class="tile"><span class="k">이번 주 연습 시간</span><span class="v">'+fmtDur(wsec)+'</span><span class="s">지난주 '+fmtDur(psec)+'</span></div>'+
@@ -828,11 +840,11 @@ function vStats(){
     '</div>'+
     '<div class="grid2" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">'+
       '<section class="panel"><div class="ph"><h2>하루 연습 시간 (분)</h2></div><div class="chart" id="ch-prac"></div></section>'+
-      '<section class="panel"><div class="ph"><h2>완료한 일정 (개)</h2><div class="legend"><span><i class="sw"></i>음악 작업</span><span><i class="sw piano"></i>피아노 연습</span></div></div><div class="chart" id="ch-done"></div></section>'+
+      '<section class="panel"><div class="ph"><h2>완료한 일정 (개)</h2><div class="legend"><span><i class="sw"></i>음악 작업</span><span><i class="sw piano"></i>피아노 연습</span><span><i class="sw job"></i>알바</span><span><i class="sw etc"></i>기타</span></div></div><div class="chart" id="ch-done"></div></section>'+
       '<section class="panel"><div class="ph"><h2>곡별 템포 달성률</h2></div>'+(tp.length?'<div class="hbars">'+tp.map(function(p){var r=Math.min(100,Math.round(p.currentBpm/p.targetBpm*100));return '<div class="hbar piano"><div class="hl"><span>'+esc(p.title)+'</span><span>'+p.currentBpm+' / '+p.targetBpm+' BPM · '+r+'%</span></div><div class="track"><i style="width:'+r+'%"></i></div></div>'}).join('')+'</div>':'<p class="empty">연습곡이 없습니다.</p>')+'</section>'+
       '<section class="panel"><div class="ph"><h2>프로젝트 진행률</h2></div>'+(S.projects.length?'<div class="hbars">'+S.projects.map(function(p){return '<div class="hbar"><div class="hl"><span>'+esc(p.name)+'</span><span>'+(p.due?dday(p.due)+' · ':'')+p.progress+'%</span></div><div class="track"><i style="width:'+p.progress+'%"></i></div></div>'}).join('')+'</div>':'<p class="empty">프로젝트가 없습니다.</p>')+'</section>'+
     '</div>'+
-    '<details class="tbl panel" style="margin-top:16px"><summary>최근 14일 기록을 표로 보기</summary><div class="tblwrap"><table><thead><tr><th>날짜</th><th>연습(분)</th><th>작업 완료</th><th>피아노 완료</th></tr></thead><tbody>'+rows+'</tbody></table></div></details>';
+    '<details class="tbl panel" style="margin-top:16px"><summary>최근 14일 기록을 표로 보기</summary><div class="tblwrap"><table><thead><tr><th>날짜</th><th>연습(분)</th><th>작업 완료</th><th>피아노 완료</th><th>알바 완료</th><th>기타 완료</th></tr></thead><tbody>'+rows+'</tbody></table></div></details>';
 }
 function barChart(el,cfg){
   if(!el)return;
@@ -873,7 +885,7 @@ function barChart(el,cfg){
 function drawCharts(){
   if(ui.view!=='stats')return;var D=statData();
   barChart($('#ch-prac'),{days:D.days,unit:'분',label:'최근 14일 하루 연습 시간',series:[{name:'연습',cls:'piano',color:'#c08a1e',vals:D.prac}]});
-  barChart($('#ch-done'),{days:D.days,unit:'개',label:'최근 14일 완료한 일정',series:[{name:'음악 작업',cls:'',color:'#8a7df0',vals:D.dp},{name:'피아노 연습',cls:'piano',color:'#c08a1e',vals:D.dq}]});
+  barChart($('#ch-done'),{days:D.days,unit:'개',label:'최근 14일 완료한 일정',series:[{name:'음악 작업',cls:'',color:'#8a7df0',vals:D.dp},{name:'피아노 연습',cls:'piano',color:'#c08a1e',vals:D.dq},{name:'알바',cls:'job',color:'#22a67c',vals:D.dj},{name:'기타',cls:'etc',color:'#8d8a9c',vals:D.de}]});
 }
 function render(){
   var links=VIEWS.map(function(v){return '<a href="#'+v[0]+'"'+(ui.view===v[0]?' aria-current="page"':'')+'>'}),
