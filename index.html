@@ -297,6 +297,15 @@ th{color:var(--ink-3);font-weight:500}
 fieldset.f{border:0;margin:0;padding:0;min-width:0}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .checks{display:flex;gap:6px;flex-wrap:wrap}
+.memo{display:flex;flex-direction:column;gap:2px}
+.memo .nl{white-space:pre-wrap;overflow-wrap:anywhere;min-height:1.4em}
+.memo .ck{display:flex;align-items:flex-start;gap:8px;cursor:pointer;padding:3px 0;min-height:28px}
+.memo .ck input{width:18px;height:18px;margin:1px 0 0;flex:none;accent-color:var(--prod);cursor:pointer}
+.memo .ck span{white-space:pre-wrap;overflow-wrap:anywhere}
+.memo .ck.on span{color:var(--ink-3);text-decoration:line-through}
+.memo-count{color:var(--ink-3);font-size:12px;margin-bottom:2px}
+.memo-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:6px}
+.memo-tools .help{margin:0}
 .checks label{cursor:pointer}
 .checks input{position:absolute;opacity:0;pointer-events:none}
 .checks span{display:block;padding:5px 11px;border-radius:99px;border:1px solid var(--line);font-size:13px;color:var(--ink-2)}
@@ -835,7 +844,8 @@ function projForm(p){
     '<label class="f"><span>프로젝트명</span><input type="text" id="f-name" name="name" value="'+esc(p.name)+'" placeholder="곡 제목 또는 사운드 디자인 프로젝트명" autocomplete="off"></label>'+
     '<fieldset class="f"><legend>세부 작업</legend><div class="checks">'+TAGS.map(function(g,i){return '<label><input type="checkbox" name="tags" id="f-tag-'+i+'" value="'+esc(g)+'"'+(p.tags.indexOf(g)>=0?' checked':'')+'><span>'+esc(g)+'</span></label>'}).join('')+'</div></fieldset>'+
     '<div class="row2"><label class="f"><span>마감일</span><input type="date" id="f-due" name="due" value="'+esc(p.due||'')+'"></label><label class="f"><span>진행률 (%)</span><input type="number" id="f-progress" name="progress" min="0" max="100" step="5" value="'+p.progress+'"></label></div>'+
-    '<label class="f"><span>메모 (선택)</span><textarea id="f-pnote" name="note">'+esc(p.note||'')+'</textarea></label>'+
+    '<div class="f"><label for="f-pnote" style="font-size:13px;color:var(--ink-2)">메모 (선택)</label><textarea id="f-pnote" name="note" data-memo>'+esc(p.note||'')+'</textarea>'+
+      '<div class="memo-tools"><button type="button" class="btn sm" data-act="memo-check">☑ 체크 항목 추가</button><p class="help">줄 앞에 “- [ ] ”를 쓰면 체크 항목이 됩니다. 카드에서 바로 체크할 수 있어요.</p></div></div>'+
     '<p class="err" id="f-err" role="alert"></p>'+
     '<div class="sheet-foot">'+(isNew?'':'<button type="button" class="btn danger" data-act="del-proj" data-id="'+p.id+'">삭제</button>')+'<span class="sp"></span><button class="btn prod">저장</button></div>',
     function(fd){
@@ -852,9 +862,50 @@ function projCard(p){
     '<div class="readout '+(fin?'fin':late?'late':'prod')+'">'+(fin?'완료':p.due?dday(p.due):'—')+'</div></div>'+
     (p.tags.length?'<div class="tagrow">'+p.tags.map(function(g){return '<span class="chip prod">'+esc(g)+'</span>'}).join('')+'</div>':'')+
     '<div class="fader"><input type="range" id="rg-'+p.id+'" min="0" max="100" step="5" value="'+p.progress+'" style="--v:'+p.progress+'%" data-range="'+p.id+'" aria-label="'+esc(p.name)+' 진행률"><output id="out-'+p.id+'">'+p.progress+'%</output></div>'+
-    (p.note?'<p class="note">'+esc(p.note)+'</p>':'')+
+    (p.note?memoHtml(p):'')+
     '<div class="card-f"><span class="meta">슬라이더를 움직이면 바로 저장됩니다</span><button class="btn sm" data-act="edit-proj" data-id="'+p.id+'">수정</button></div></article>';
 }
+
+/* ---------- 메모 체크 항목 ----------
+   메모는 그대로 글자로 저장한다. "- [ ] 할 일" / "- [x] 한 일" 줄을 체크 항목으로 보여 준다. */
+var CK_RE=/^(\s*)(?:[-*]\s*)?\[([ xX])\]\s?(.*)$/;
+function memoHtml(p){
+  var lines=String(p.note).split('\n'),n=0,on=0;
+  var body=lines.map(function(ln,i){
+    var m=ln.match(CK_RE);
+    if(!m)return '<div class="nl">'+(ln?esc(ln):'&nbsp;')+'</div>';
+    var c=m[2]!==' ';n++;if(c)on++;
+    return '<label class="ck'+(c?' on':'')+'"'+(m[1]?' style="padding-left:'+Math.min(m[1].length,8)*8+'px"':'')+'><input type="checkbox" data-change="memo-ck" data-id="'+p.id+'" data-line="'+i+'"'+(c?' checked':'')+'><span>'+esc(m[3]||' ')+'</span></label>';
+  }).join('');
+  return '<div class="note memo">'+(n?'<div class="memo-count">체크 '+on+'/'+n+'</div>':'')+body+'</div>';
+}
+function memoToggle(el){
+  var p=find(S.projects,el.dataset.id);if(!p)return;
+  var lines=String(p.note||'').split('\n'),i=+el.dataset.line,m=lines[i]!=null&&lines[i].match(CK_RE);
+  if(!m){render();return} /* 그 사이 메모가 바뀌었으면 다시 그린다 */
+  lines[i]=m[1]+'- ['+(el.checked?'x':' ')+'] '+m[3];
+  p.note=lines.join('\n');save();render();
+}
+/* 입력창: 체크 항목 줄 추가, 체크 항목 줄에서 Enter를 누르면 다음 줄도 체크 항목 */
+function memoInsert(ta){
+  var v=ta.value,s=ta.selectionStart==null?v.length:ta.selectionStart,ls=v.lastIndexOf('\n',s-1)+1,le=v.indexOf('\n',s);if(le<0)le=v.length;
+  var cur=v.slice(ls,le),ins,pos;
+  if(!cur.trim()){ins='- [ ] ';v=v.slice(0,ls)+ins+v.slice(le);pos=ls+ins.length}
+  else if(CK_RE.test(cur)){ins='\n- [ ] ';v=v.slice(0,le)+ins+v.slice(le);pos=le+ins.length}
+  else{ins='\n- [ ] ';v=v.slice(0,le)+ins+v.slice(le);pos=le+ins.length}
+  ta.value=v;ta.focus();ta.setSelectionRange(pos,pos);
+}
+document.addEventListener('keydown',function(e){
+  var ta=e.target;
+  if(e.key!=='Enter'||e.shiftKey||e.isComposing||!ta.hasAttribute||!ta.hasAttribute('data-memo'))return;
+  var v=ta.value,s=ta.selectionStart,en=ta.selectionEnd,ls=v.lastIndexOf('\n',s-1)+1,m=v.slice(ls,s).match(CK_RE);
+  if(!m||s!==en)return;
+  e.preventDefault();
+  if(!m[3].trim()&&v.slice(s).split('\n')[0].trim()===''){ /* 빈 체크 항목에서 Enter → 체크 항목 끝내기 */
+    ta.value=v.slice(0,ls)+v.slice(s);ta.setSelectionRange(ls,ls);return;
+  }
+  var ins='\n'+m[1]+'- [ ] ';ta.value=v.slice(0,s)+ins+v.slice(s);ta.setSelectionRange(s+ins.length,s+ins.length);
+});
 
 /* ---------- 피아노 ---------- */
 function pieceTotal(p){return p.logs.reduce(function(a,l){return a+(+l.sec||0)},0)}
@@ -1323,6 +1374,7 @@ var ACT={
     else{try{audio=audio||new (window.AudioContext||window.webkitAudioContext)();if(audio.state==='suspended')audio.resume()}catch(e){}t.startedAt=Date.now();t.running=true}
     save();render()},
   't-reset':function(){resetTimer();save();render()},
+  'memo-check':function(){var ta=$('#f-pnote');if(ta)memoInsert(ta)},
   't-finish':function(){var t=T(),p=find(S.pieces,t.pieceId);if(!p)return;if(t.running){t.acc=tElapsed();t.running=false;save();render()}logForm(p,tPracticed()/1000,true)}
 };
 document.addEventListener('click',function(e){var b=e.target.closest('[data-act]');if(!b||b.disabled)return;var f=ACT[b.dataset.act];if(f)f(b,e)});
@@ -1335,6 +1387,7 @@ document.addEventListener('change',function(e){
   var el=e.target,d=el.dataset||{};
   if(d.tp){tpSync(d.tp);return}
   if(d.change==='repeat'){repeatOptions();return}
+  if(d.change==='memo-ck'){memoToggle(el);return}
   if(d.pt!==undefined){setPt(+el.value,true);return}
   if(d.change==='color-custom'){setColor(d.group,el.value);return}
   if(d.change==='repeat-day'){var bx=$('#repeat-days');if(bx)bx.dataset.touched='1';return}
